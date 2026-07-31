@@ -46,39 +46,123 @@
       overscroll-behavior: none;
     }
 
-    header {
+    /* Floating pill chrome — ported from ravivasavan.com */
+    :root {
+      --pill-bg: rgba(255, 245, 245, 0.2);
+      --pill-filter: blur(10px) saturate(180%);
+      --separator: color-mix(in srgb, var(--night) 5%, transparent);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --pill-bg: rgba(13, 27, 30, 0.5);
+        --separator: color-mix(in srgb, var(--white) 8%, transparent);
+      }
+    }
+    .pills {
       position: fixed;
-      inset: 0 0 auto 0;
-      display: flex;
-      justify-content: space-between;
-      align-items: baseline;
-      padding: 16px 20px;
+      top: 40px;
       z-index: 500;
-      pointer-events: none;
+      display: flex;
+      align-items: center;
+      gap: 8px;
     }
-    header a, header button {
-      pointer-events: auto;
-      color: var(--muted);
-      background: none;
-      border: none;
-      font: inherit;
-      text-decoration: none;
+    .pills--left { left: 40px; }
+    .pills--right { right: 40px; }
+
+    .header-pill {
+      background: var(--pill-bg);
+      backdrop-filter: var(--pill-filter);
+      -webkit-backdrop-filter: var(--pill-filter);
+      border-radius: 32px;
+      padding: 8px;
+      box-shadow: inset 0 0 0 1px var(--separator);
+      margin: 0;
+    }
+    .header-pill__inner { display: flex; align-items: center; gap: 12px; }
+    .header-pill__avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 48px;
+      background: var(--separator);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .header-pill__avatar svg { width: 100%; height: 100%; display: block; }
+    .header-pill__label { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
+    .header-pill__name { font-size: 16px; line-height: 1.3; }
+    .header-pill__role { font-size: 16px; line-height: 1.3; opacity: 0.6; }
+
+    /* Icon pill — same construction as the main site's theme pill: 64px pill,
+       48px inner circle, bg blob expands on hover. */
+    .icon-pill[hidden] { display: none; }
+    .icon-pill {
+      background: var(--pill-bg);
+      backdrop-filter: var(--pill-filter);
+      -webkit-backdrop-filter: var(--pill-filter);
+      border: 0;
+      border-radius: 32px;
+      padding: 8px;
       cursor: pointer;
-      padding: 8px 0;
+      color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--separator);
+      display: inline-flex;
+      font: inherit;
       position: relative;
-      transition: color 0.15s ease, scale 0.15s ease;
+      overflow: hidden;
+      text-decoration: none;
     }
-    header a::after, header button::after {
-      content: "";
+    .icon-pill::before {
+      content: '';
       position: absolute;
-      inset: -8px;
+      top: 8px;
+      left: 8px;
+      width: 48px;
+      height: 48px;
+      background: var(--separator);
+      border-radius: 48px;
+      z-index: 0;
+      transition:
+        top          240ms cubic-bezier(0.4, 0, 0.2, 1),
+        left         240ms cubic-bezier(0.4, 0, 0.2, 1),
+        width        240ms cubic-bezier(0.4, 0, 0.2, 1),
+        height       240ms cubic-bezier(0.4, 0, 0.2, 1),
+        border-radius 240ms cubic-bezier(0.4, 0, 0.2, 1);
     }
-    header a:hover, header button:hover { color: var(--ink); }
-    header button:active { scale: 0.96; }
-    nav { display: flex; gap: 24px; }
-    h1 { font-size: 1em; font-weight: 400; padding: 8px 0; }
-    h1 a { color: var(--muted); padding: 0; }
-    h1 a:hover { color: var(--ink); }
+    .icon-pill:hover::before,
+    .icon-pill:focus-visible::before {
+      top: 3.2px;
+      left: 3.2px;
+      width: 57.6px;
+      height: 57.6px;
+      border-radius: 38.4px;
+    }
+    .icon-pill__icon {
+      width: 48px;
+      height: 48px;
+      border-radius: 48px;
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+      position: relative;
+      z-index: 1;
+    }
+    .icon-pill__icon svg {
+      grid-area: 1 / 1;
+      width: 18px;
+      height: 18px;
+      transition: opacity 240ms ease-out, transform 240ms cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    /* camera pill crossfades camera ↔ camera-off with .is-on */
+    .icon-pill svg[data-state="off"] { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+    .icon-pill.is-on svg[data-state="on"] { opacity: 0; transform: rotate(90deg) scale(0.85); }
+    .icon-pill.is-on svg[data-state="off"] { opacity: 1; transform: rotate(0) scale(1); }
+
+    @media (max-width: 640px) {
+      .pills { top: 12px; }
+      .pills--left { left: 12px; }
+      .pills--right { right: 12px; }
+      .header-pill__role { display: none; }
+    }
 
     #stage {
       position: fixed;
@@ -164,15 +248,60 @@
   </style>
 </head>
 <body>
-  <header>
-    <h1><a href="/">play</a> / magnetic</h1>
-    <nav>
-      <button id="btn-upload" type="button">upload</button>
-      <button id="btn-camera" type="button">camera</button>
-      <button id="btn-snap" type="button" hidden>snap</button>
-      <button id="btn-shuffle" type="button">shuffle</button>
-    </nav>
-  </header>
+  <div class="pills pills--left">
+    <a class="icon-pill" href="/" aria-label="Back to play index">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" style="width:16px;height:16px">
+          <path d="M10 4L6 8L10 12" stroke="currentColor" stroke-width="1.25" stroke-linecap="square" stroke-linejoin="miter"/>
+        </svg>
+      </span>
+    </a>
+    <header class="header-pill">
+      <div class="header-pill__inner">
+        <div class="header-pill__avatar">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"> <rect width="2.00001" height="2.00001" transform="matrix(-1 0 0 1 32 13)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 20 13)" fill="currentColor"/> <path d="M34.0098 34.9766V48H36V34.9766H34.0098ZM13.9902 34.9766H12V48H13.9902V35.0293H15.9805V32.9814H13.9902V34.9766ZM32 13H16V9H14V17H16V15H32V25H30V27H18V31H16V33H18V35H30V33H32V35H34V33H32V31H34V15H40V13H34V9H32V13ZM12 22H14V17H12V22ZM28 21H30V19H28V21ZM20 21H22V19H20V21ZM30 9H32V7H30V9ZM16 9H18V7H16V9ZM18 7H30V5H18V7Z" fill="currentColor"/> <rect width="4" height="6" transform="matrix(-1 0 0 1 18 27)" fill="currentColor"/> <rect width="2.00001" height="4.00001" transform="matrix(-1 0 0 1 16 21)" fill="currentColor"/> <path d="M16 25H18V21H16V25Z" fill="currentColor"/> <rect width="16.0001" height="2.00001" transform="matrix(-1 0 0 1 30 25)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 32 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 24 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 28 21)" fill="currentColor"/> </svg>
+        </div>
+        <div class="header-pill__label">
+          <span class="header-pill__name">Ravi Vasavan</span>
+          <span class="header-pill__role">Magnetic</span>
+        </div>
+      </div>
+    </header>
+  </div>
+
+  <nav class="pills pills--right">
+    <button class="icon-pill" id="btn-upload" type="button" aria-label="Upload image">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/>
+        </svg>
+      </span>
+    </button>
+    <button class="icon-pill" id="btn-camera" type="button" aria-label="Use camera">
+      <span class="icon-pill__icon">
+        <svg data-state="on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/>
+        </svg>
+        <svg data-state="off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <line x1="2" x2="22" y1="2" y2="22"/><path d="M7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16"/><path d="M9.5 4h5L17 7h3a2 2 0 0 1 2 2v7.5"/><path d="M14.121 15.121A3 3 0 1 1 9.88 10.88"/>
+        </svg>
+      </span>
+    </button>
+    <button class="icon-pill" id="btn-snap" type="button" hidden aria-label="Snap photo">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><path d="m14.31 8 5.74 9.94"/><path d="M9.69 8h11.48"/><path d="m7.38 12 5.74-9.94"/><path d="M9.69 16 3.95 6.06"/><path d="M14.31 16H2.83"/><path d="m16.62 12-5.74 9.94"/>
+        </svg>
+      </span>
+    </button>
+    <button class="icon-pill" id="btn-shuffle" type="button" aria-label="Shuffle layout">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/>
+        </svg>
+      </span>
+    </button>
+  </nav>
 
   <div id="stage"></div>
   <p id="hint">click anywhere to magnetise</p>
@@ -296,7 +425,7 @@
     const m = 24;
     return {
       x: rand(m, Math.max(m + 1, innerWidth - winW(w) - m)),
-      y: rand(m + 56, Math.max(m + 57, innerHeight - winH(w) - m)),
+      y: rand(m + 104, Math.max(m + 105, innerHeight - winH(w) - m)),
       r: rand(-22, 22),
       s: rand(0.55, 1.0)
     };
@@ -420,7 +549,7 @@
   // ---------- magnetise / scatter ----------
   function magnetise() {
     anchor.x = (innerWidth - portrait.w) / 2;
-    anchor.y = Math.max((innerHeight - portrait.h) / 2, 56);
+    anchor.y = Math.max((innerHeight - portrait.h) / 2, 112);
     const cx = innerWidth / 2, cy = innerHeight / 2;
     const now = performance.now();
     for (const w of wins) {
@@ -568,7 +697,8 @@
         video: { facingMode: 'user', width: { ideal: 1280 } }, audio: false
       });
       btnSnap.hidden = false;
-      btnCamera.textContent = 'stop';
+      btnCamera.classList.add('is-on');
+      btnCamera.ariaLabel = 'Stop camera';
       applyMedia();
     } catch (err) {
       hint.textContent = 'camera unavailable — ' + (err.name || err);
@@ -580,7 +710,8 @@
     stream.getTracks().forEach(t => t.stop());
     stream = null;
     btnSnap.hidden = true;
-    btnCamera.textContent = 'camera';
+    btnCamera.classList.remove('is-on');
+    btnCamera.ariaLabel = 'Use camera';
     applyMedia();
   }
   btnCamera.addEventListener('click', () => stream ? stopCamera() : startCamera());
