@@ -404,7 +404,7 @@
   <p id="hint">drag or scroll →</p>
 
   <noscript>
-    <p style="padding: 160px 24px"><a href="/experiments/magnetic/">Magnetic — scattered windows that magnetise into a portrait</a></p>
+    <p style="padding: 160px 24px"><a href="/20260731/magnetic/">Magnetic — scattered elements that magnetise into a layout</a></p>
   </noscript>
 
 <script>
@@ -507,7 +507,7 @@
     }).join('');
     el.innerHTML = `
       <span class="entry__when">${fmt(e.d)} ${e.d.getFullYear()}</span>
-      <a class="entry__head" href="/experiments/${e.slug}/">
+      <a class="entry__head" href="/${e.date}/${e.slug}/">
         <span class="entry__glyph">${glyph}</span>
         <span class="entry__name">${e.name}</span>
         <span class="entry__code">${e.date}</span>
@@ -517,7 +517,7 @@
         <span class="entry__status" data-status="${e.status}">${e.status}</span>
         <span class="entry__tech">${e.tech}</span>
       </div>
-      <a class="entry__shots" href="/experiments/${e.slug}/" aria-label="Open ${e.name}">${shots}</a>`;
+      <a class="entry__shots" href="/${e.date}/${e.slug}/" aria-label="Open ${e.name}">${shots}</a>`;
     rail.appendChild(el);
   }
 
