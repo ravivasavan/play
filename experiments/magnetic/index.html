@@ -5,6 +5,14 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
   <title>magnetic — play</title>
   <meta name="description" content="Scattered windows that magnetise into a face when you click.">
+  <script>
+    /* Set data-theme before paint to avoid FOUC. Cycles: day → night → system. */
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('theme'); } catch (e) {}
+      document.documentElement.dataset.theme = (t === 'day' || t === 'night' || t === 'system') ? t : 'system';
+    })();
+  </script>
   <style>
     @font-face {
       font-family: "Labil Grotesk";
@@ -26,8 +34,14 @@
       --muted: color-mix(in srgb, var(--night) 55%, var(--white));
       --chrome: #ffffff;
     }
+    [data-theme="night"] {
+      --bg: var(--night);
+      --ink: var(--white);
+      --muted: color-mix(in srgb, var(--white) 55%, var(--night));
+      --chrome: #16282d;
+    }
     @media (prefers-color-scheme: dark) {
-      :root {
+      [data-theme="system"] {
         --bg: var(--night);
         --ink: var(--white);
         --muted: color-mix(in srgb, var(--white) 55%, var(--night));
@@ -52,8 +66,12 @@
       --pill-filter: blur(10px) saturate(180%);
       --separator: color-mix(in srgb, var(--night) 5%, transparent);
     }
+    [data-theme="night"] {
+      --pill-bg: rgba(13, 27, 30, 0.5);
+      --separator: color-mix(in srgb, var(--white) 8%, transparent);
+    }
     @media (prefers-color-scheme: dark) {
-      :root {
+      [data-theme="system"] {
         --pill-bg: rgba(13, 27, 30, 0.5);
         --separator: color-mix(in srgb, var(--white) 8%, transparent);
       }
@@ -156,6 +174,27 @@
     .icon-pill svg[data-state="off"] { opacity: 0; transform: rotate(-90deg) scale(0.85); }
     .icon-pill.is-on svg[data-state="on"] { opacity: 0; transform: rotate(90deg) scale(0.85); }
     .icon-pill.is-on svg[data-state="off"] { opacity: 1; transform: rotate(0) scale(1); }
+
+    /* theme pill — glyph matching [data-theme] fades in, hover previews next */
+    .icon-pill--theme .icon-pill__icon svg { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+    [data-theme="day"]    .icon-pill--theme svg[data-tstate="day"],
+    [data-theme="night"]  .icon-pill--theme svg[data-tstate="night"],
+    [data-theme="system"] .icon-pill--theme svg[data-tstate="system"] {
+      opacity: 1;
+      transform: rotate(0deg) scale(1);
+    }
+    [data-theme="day"]    .icon-pill--theme:hover svg[data-tstate="day"],
+    [data-theme="night"]  .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="system"] .icon-pill--theme:hover svg[data-tstate="system"] {
+      opacity: 0;
+      transform: rotate(90deg) scale(0.85);
+    }
+    [data-theme="day"]    .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="night"]  .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="system"] .icon-pill--theme:hover svg[data-tstate="day"] {
+      opacity: 1;
+      transform: rotate(0deg) scale(1);
+    }
 
     @media (max-width: 640px) {
       .pills { top: 12px; }
@@ -298,6 +337,19 @@
       <span class="icon-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/>
+        </svg>
+      </span>
+    </button>
+    <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
+      <span class="icon-pill__icon">
+        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+        </svg>
+        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+        </svg>
+        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
         </svg>
       </span>
     </button>
@@ -749,6 +801,16 @@
       relayout();
       if (assembled) magnetise();
     }, 150);
+  });
+
+  // ---------- theme pill (ported from ravivasavan.com) ----------
+  const themeBtn = document.querySelector('[data-theme-toggle]');
+  const CYCLE = ['day', 'night', 'system'];
+  themeBtn.addEventListener('click', () => {
+    const html = document.documentElement;
+    const next = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
+    html.dataset.theme = next;
+    try { localStorage.setItem('theme', next); } catch (e) {}
   });
 
   build();
