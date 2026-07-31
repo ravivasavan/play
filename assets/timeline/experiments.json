@@ -4,7 +4,7 @@
       "slug": "magnetic",
       "name": "Magnetic",
       "date": "20260731",
-      "description": "Scattered windows that magnetise into a portrait",
+      "description": "Scattered elements that magnetise into a layout",
       "status": "live",
       "tech": "vanilla JS, spring physics",
       "glyph": "magnet",

@@ -226,6 +226,15 @@
       height: 25px;
       background: color-mix(in srgb, var(--fg) 30%, transparent);
     }
+    /* the exact day an experiment was filed */
+    .dot {
+      position: absolute;
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+      background: var(--orange);
+      box-shadow: 0 0 0 3px var(--bg);
+    }
 
     .entry { position: absolute; width: 460px; }
     .entry__head {
@@ -285,7 +294,7 @@
       position: relative;
       display: block;
       margin-top: 28px;
-      height: 400px;
+      height: 480px;
     }
     .shot {
       position: absolute;
@@ -327,10 +336,10 @@
       #timeline { position: static; overflow: visible; cursor: auto; }
       .rail { width: auto !important; height: auto; min-height: 0; padding: 128px 16px 80px; }
       .tl-head { position: static; margin-bottom: 56px; }
-      .week, .rule, .tick { display: none; }
+      .week, .rule, .tick, .dot { display: none; }
       .entry { position: static; width: auto; margin: 0 0 72px; }
       .entry__when { display: block !important; }
-      .entry__shots { height: 320px; }
+      .entry__shots { height: 420px; }
       .shot { width: 230px; }
       #hint { display: none; }
 
@@ -406,7 +415,7 @@
 
   const PPD = 56;          // px per day
   const PAD = 64;          // rail end padding
-  const RULE_Y = 220;      // y of the dashed rule
+  const RULE_Y = 320;      // y of the dashed rule — clear of the header chrome
   const DAY_MS = 86400000;
 
   const GLYPHS = {
@@ -474,6 +483,11 @@
   // entries
   for (const e of entries) {
     const rand = seeded(e.slug);
+    const dot = document.createElement('div');
+    dot.className = 'dot';
+    dot.style.left = (x(e.d) - 4) + 'px';
+    dot.style.top = (RULE_Y - 4) + 'px';
+    rail.appendChild(dot);
     const el = document.createElement('article');
     el.className = 'entry';
     el.style.left = x(e.d) + 'px';
@@ -482,9 +496,10 @@
       ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPHS[e.glyph]}</svg>`
       : `<span>${e.name[0]}</span>`;
     const shots = e.shots.map((s, i) => {
-      const dx = i * 64 + (rand() - 0.5) * 40;
-      const dy = i * 88 + (rand() - 0.5) * 48;
-      const rot = (rand() - 0.5) * 12;
+      // zigzag: cards alternate left / right as they cascade down
+      const dx = (i % 2 ? 150 : 0) + (rand() - 0.5) * 56;
+      const dy = i * 118 + (rand() - 0.5) * 48;
+      const rot = (rand() - 0.5) * 14;
       return `<img class="shot" src="/assets/timeline/${e.slug}/${s}" alt=""
         loading="lazy" draggable="false"
         style="left:${Math.max(0, dx)}px; top:${Math.max(0, dy)}px; transform: rotate(${rot.toFixed(1)}deg); z-index:${i + 1}">`;
