@@ -321,13 +321,18 @@
       bottom: 24px;
       left: 0;
       right: 0;
-      text-align: center;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
       color: color-mix(in srgb, var(--fg) 50%, transparent);
       pointer-events: none;
       z-index: 40;
       opacity: 1;
       transition: opacity 0.6s ease;
     }
+    #hint svg { width: 14px; height: 14px; }
+    #hint svg.hand { width: 20px; height: 20px; }
     #hint.gone { opacity: 0; }
 
     /* Mobile — the rail folds into a vertical flow */
@@ -401,7 +406,11 @@
   </div>
 
   <div id="timeline"><div class="rail" id="rail"></div></div>
-  <p id="hint">drag or scroll →</p>
+  <div id="hint" aria-hidden="true">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+    <svg class="hand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M18 11V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2"/><path d="M14 10V4a2 2 0 0 0-2-2a2 2 0 0 0-2 2v2"/><path d="M10 10.5V6a2 2 0 0 0-2-2a2 2 0 0 0-2 2v8"/><path d="M18 8a2 2 0 1 1 4 0v6a8 8 0 0 1-8 8h-2c-2.8 0-4.5-.86-5.99-2.34l-3.6-3.6a2 2 0 0 1 2.83-2.82L7 15"/></svg>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m9 18 6-6-6-6"/></svg>
+  </div>
 
   <noscript>
     <p style="padding: 160px 24px"><a href="/20260731/magnetic/">Magnetic — scattered elements that magnetise into a layout</a></p>
