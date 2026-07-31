@@ -27,6 +27,7 @@
       /* Brand colours — inherited from ravivasavan.com */
       --night: #0d1b1e;
       --orange: #ff795c;
+      --olive: #567c30;
       --white: #fff5f5;
 
       --bg: var(--white);
@@ -35,8 +36,6 @@
       --pill-bg: rgba(255, 245, 245, 0.2);
       --pill-filter: blur(10px) saturate(180%);
       --pill-edge: inset 0 0 0 1px var(--separator);
-      --shell-width: min(80%, 1440px);
-      --row-pad: 24px;
     }
     [data-theme="night"] {
       --bg: var(--night);
@@ -54,8 +53,8 @@
     }
 
     *, *::before, *::after { box-sizing: border-box; }
-    html, body { margin: 0; padding: 0; }
-    html { background: var(--bg); scrollbar-gutter: stable; }
+    html, body { margin: 0; padding: 0; height: 100%; }
+    html { background: var(--bg); }
     body {
       background: var(--bg);
       color: var(--fg);
@@ -63,6 +62,7 @@
       font-family: "Labil Grotesk", system-ui, sans-serif;
       font-size: 16px;
       line-height: 1.3;
+      overflow: hidden;
     }
     a { color: inherit; text-decoration: none; }
 
@@ -106,8 +106,6 @@
     .header-pill__name { font-size: 16px; line-height: 1.3; }
     .header-pill__role { font-size: 16px; line-height: 1.3; opacity: 0.6; }
 
-    /* Icon pill — main site's theme-pill construction: 64px pill, 48px inner
-       circle, bg blob expands on hover. */
     .icon-pill {
       background: var(--pill-bg);
       backdrop-filter: var(--pill-filter);
@@ -159,14 +157,8 @@
       position: relative;
       z-index: 1;
     }
-    .icon-pill__icon svg {
-      grid-area: 1 / 1;
-      width: 18px;
-      height: 18px;
-    }
+    .icon-pill__icon svg { grid-area: 1 / 1; width: 18px; height: 18px; }
 
-    /* Theme pill glyphs — stacked, the one matching [data-theme] fades in;
-       hover previews the next state in the cycle. Ported from main site. */
     .icon-pill--theme .icon-pill__icon svg {
       opacity: 0;
       transform: rotate(-90deg) scale(0.85);
@@ -191,65 +183,157 @@
       transform: rotate(0deg) scale(1);
     }
 
-    /* Page shell */
-    .page {
-      min-height: 100vh;
-      padding-top: 144px;
-      padding-bottom: 120px;
+    /* Timeline — lifeline concept: one horizontal rail, weeks as bands,
+       entries hanging below their date, screenshots loosely scattered. */
+    #timeline {
+      position: fixed;
+      inset: 0;
+      overflow-x: auto;
+      overflow-y: auto;
+      cursor: grab;
+      scrollbar-width: none;
     }
-    .shell {
-      width: var(--shell-width);
-      margin: 0 auto;
-      display: flex;
-      flex-direction: column;
-      gap: 80px;
-    }
+    #timeline::-webkit-scrollbar { display: none; }
+    #timeline.dragging { cursor: grabbing; }
 
-    /* Index rows — two groups: name + desc | date code */
-    .index-section { width: 100%; display: flex; flex-direction: column; }
-    .index-section__head {
-      display: flex;
-      align-items: center;
-      height: 64px;
-      padding: 0 var(--row-pad);
-    }
-    .index-section__title {
+    .rail { position: relative; height: 100%; min-height: 760px; }
+
+    .tl-head {
+      position: absolute;
       font-size: 24px;
-      line-height: 1.3;
-      margin: 0;
-      font-weight: 400;
+      max-width: 300px;
       text-wrap: balance;
     }
-    .row {
-      display: flex;
-      align-items: baseline;
-      justify-content: space-between;
-      gap: 16px;
-      padding: var(--row-pad);
-      border-top: 1px solid var(--separator);
-      transition: background-color 120ms ease, color 120ms ease;
+
+    .week {
+      position: absolute;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      opacity: 0.55;
+      white-space: nowrap;
     }
-    .row:last-child { border-bottom: 1px solid var(--separator); }
-    .row__main {
-      display: flex;
-      align-items: baseline;
-      gap: 16px;
-      flex-wrap: wrap;
-      min-width: 0;
+    .week__range { display: block; }
+    .week__label { display: block; margin-top: 10px; opacity: 0.6; }
+
+    .rule {
+      position: absolute;
+      left: 0;
+      border-top: 1px dashed color-mix(in srgb, var(--fg) 22%, transparent);
     }
-    .row__desc { opacity: 0.6; }
-    .row__date { white-space: nowrap; }
-    .row:hover {
-      background: var(--orange);
-      color: var(--night);
+    .tick {
+      position: absolute;
+      width: 1px;
+      height: 25px;
+      background: color-mix(in srgb, var(--fg) 30%, transparent);
     }
 
-    @media (max-width: 900px) {
-      :root { --shell-width: calc(100% - 32px); }
-      .page { padding-top: 112px; }
-      .header-pills { top: 16px; }
+    .entry { position: absolute; width: 460px; }
+    .entry__head {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
     }
+    .entry__glyph {
+      width: 48px;
+      height: 48px;
+      border-radius: 48px;
+      background: var(--separator);
+      display: grid;
+      place-items: center;
+      flex-shrink: 0;
+    }
+    .entry__glyph svg { width: 18px; height: 18px; }
+    .entry__name { font-size: 16px; }
+    a:hover .entry__name { text-decoration: underline; text-underline-offset: 3px; }
+    .entry__code { font-size: 13px; opacity: 0.45; margin-left: 4px; }
+    .entry__desc {
+      margin: 16px 0 0;
+      max-width: 300px;
+      line-height: 1.5;
+      opacity: 0.85;
+      text-wrap: pretty;
+    }
+    .entry__meta {
+      margin-top: 12px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-size: 13px;
+    }
+    .entry__status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--separator);
+      padding: 5px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+    }
+    .entry__status::before {
+      content: '';
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--dot, currentColor);
+    }
+    .entry__status[data-status="live"]      { --dot: var(--olive); }
+    .entry__status[data-status="tinkering"] { --dot: var(--orange); }
+    .entry__status[data-status="retired"]   { --dot: color-mix(in srgb, var(--fg) 35%, transparent); }
+    .entry__tech { opacity: 0.5; }
+
+    .entry__shots {
+      position: relative;
+      display: block;
+      margin-top: 28px;
+      height: 400px;
+    }
+    .shot {
+      position: absolute;
+      width: 300px;
+      border-radius: 8px;
+      outline: 1px solid color-mix(in srgb, var(--fg) 8%, transparent);
+      outline-offset: -1px;
+      box-shadow:
+        0 4px 12px rgba(13, 27, 30, 0.05),
+        0 24px 64px rgba(13, 27, 30, 0.16);
+      transition: transform 240ms cubic-bezier(0.4, 0, 0.2, 1), box-shadow 240ms ease;
+      will-change: transform;
+    }
+    .shot:hover {
+      transform: rotate(0deg) translateY(-6px) scale(1.02) !important;
+      box-shadow:
+        0 8px 20px rgba(13, 27, 30, 0.08),
+        0 40px 96px rgba(13, 27, 30, 0.22);
+      z-index: 10;
+    }
+
+    #hint {
+      position: fixed;
+      bottom: 24px;
+      left: 0;
+      right: 0;
+      text-align: center;
+      color: color-mix(in srgb, var(--fg) 50%, transparent);
+      pointer-events: none;
+      z-index: 40;
+      opacity: 1;
+      transition: opacity 0.6s ease;
+    }
+    #hint.gone { opacity: 0; }
+
+    /* Mobile — the rail folds into a vertical flow */
     @media (max-width: 640px) {
+      body { overflow: auto; }
+      #timeline { position: static; overflow: visible; cursor: auto; }
+      .rail { width: auto !important; height: auto; min-height: 0; padding: 128px 16px 80px; }
+      .tl-head { position: static; margin-bottom: 56px; }
+      .week, .rule, .tick { display: none; }
+      .entry { position: static; width: auto; margin: 0 0 72px; }
+      .entry__when { display: block !important; }
+      .entry__shots { height: 320px; }
+      .shot { width: 230px; }
+      #hint { display: none; }
+
       .header-pills {
         top: 12px;
         display: flex;
@@ -261,10 +345,13 @@
       .header-pills > .icon-pill--theme,
       .header-pills > .header-pill { margin: 0; }
       .header-pill__role { display: none; }
-      .index-section__head { padding: 0; }
-      .row { padding: 16px 0; }
-      .row__main { flex-direction: column; gap: 2px; }
-      .row__desc { font-size: 14px; }
+    }
+    .entry__when {
+      display: none;
+      font-size: 12px;
+      letter-spacing: 0.08em;
+      opacity: 0.55;
+      margin-bottom: 16px;
     }
   </style>
 </head>
@@ -304,38 +391,182 @@
     </button>
   </div>
 
-  <main class="page">
-    <div class="shell">
-      <section class="index-section">
-        <div class="index-section__head">
-          <h1 class="index-section__title">Experiments, out in the open.</h1>
-        </div>
-        <a class="row" href="/experiments/magnetic/">
-          <span class="row__main">
-            <span class="row__title">Magnetic</span>
-            <span class="row__desc">Scattered windows that magnetise into a portrait</span>
-          </span>
-          <span class="row__date">20260731</span>
-        </a>
-      </section>
-    </div>
-  </main>
+  <div id="timeline"><div class="rail" id="rail"></div></div>
+  <p id="hint">drag or scroll →</p>
 
-  <script>
-    /* Theme pill — cycles day → night → system, persists to localStorage.
-       Ported from ravivasavan.com. */
-    (function () {
-      const CYCLE = ['day', 'night', 'system'];
-      const btn = document.querySelector('[data-theme-toggle]');
-      if (!btn) return;
-      btn.addEventListener('click', () => {
-        const html = document.documentElement;
-        const current = html.dataset.theme || 'system';
-        const next = CYCLE[(CYCLE.indexOf(current) + 1) % CYCLE.length];
-        html.dataset.theme = next;
-        try { localStorage.setItem('theme', next); } catch (e) {}
-      });
-    })();
-  </script>
+  <noscript>
+    <p style="padding: 160px 24px"><a href="/experiments/magnetic/">Magnetic — scattered windows that magnetise into a portrait</a></p>
+  </noscript>
+
+<script>
+(async () => {
+  const timeline = document.getElementById('timeline');
+  const rail = document.getElementById('rail');
+  const hint = document.getElementById('hint');
+
+  const PPD = 56;          // px per day
+  const PAD = 64;          // rail end padding
+  const RULE_Y = 220;      // y of the dashed rule
+  const DAY_MS = 86400000;
+
+  const GLYPHS = {
+    magnet: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3z"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>'
+  };
+
+  // deterministic per-slug jitter so the scatter is stable between visits
+  function seeded(slug) {
+    let h = 2166136261;
+    for (const c of slug) { h ^= c.charCodeAt(0); h = Math.imul(h, 16777619); }
+    return () => {
+      h = Math.imul(h ^ (h >>> 15), 2246822507);
+      h = Math.imul(h ^ (h >>> 13), 3266489909);
+      return ((h ^= h >>> 16) >>> 0) / 4294967296;
+    };
+  }
+
+  const parse = code => new Date(+code.slice(0, 4), +code.slice(4, 6) - 1, +code.slice(6, 8));
+  const monday = d => { const m = new Date(d); m.setDate(m.getDate() - (m.getDay() + 6) % 7); return m; };
+  const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  const fmt = d => `${MONTHS[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}`;
+
+  const data = await (await fetch('/assets/timeline/experiments.json')).json();
+  const entries = data.experiments.map(e => ({ ...e, d: parse(e.date) }))
+    .sort((a, b) => a.d - b.d);
+
+  const today = new Date();
+  const start = monday(new Date(entries[0].d.getTime() - 7 * DAY_MS));
+  const end = new Date(monday(new Date(Math.max(today, entries.at(-1).d) + 7 * DAY_MS)).getTime() + 7 * DAY_MS);
+  const days = Math.round((end - start) / DAY_MS);
+  const x = d => PAD + Math.round((d - start) / DAY_MS) * PPD;
+  const railW = x(end) + PAD;
+  rail.style.width = railW + 'px';
+
+  // title block, rule, week bands
+  const head = document.createElement('h1');
+  head.className = 'tl-head';
+  head.style.left = PAD + 'px';
+  head.style.top = (RULE_Y - 160) + 'px';
+  head.textContent = 'Experiments, out in the open.';
+  rail.appendChild(head);
+
+  const rule = document.createElement('div');
+  rule.className = 'rule';
+  rule.style.top = RULE_Y + 'px';
+  rule.style.width = railW + 'px';
+  rail.appendChild(rule);
+
+  for (let w = new Date(start); w < end; w.setDate(w.getDate() + 7)) {
+    const wx = x(w);
+    const weekEnd = new Date(w.getTime() + 6 * DAY_MS);
+    const label = document.createElement('div');
+    label.className = 'week';
+    label.style.left = wx + 'px';
+    label.style.top = (RULE_Y - 68) + 'px';
+    label.innerHTML = `<span class="week__range">${fmt(w)}–${fmt(weekEnd)}</span><span class="week__label">WEEK</span>`;
+    rail.appendChild(label);
+    const tick = document.createElement('div');
+    tick.className = 'tick';
+    tick.style.left = wx + 'px';
+    tick.style.top = (RULE_Y - 12) + 'px';
+    rail.appendChild(tick);
+  }
+
+  // entries
+  for (const e of entries) {
+    const rand = seeded(e.slug);
+    const el = document.createElement('article');
+    el.className = 'entry';
+    el.style.left = x(e.d) + 'px';
+    el.style.top = (RULE_Y + 36) + 'px';
+    const glyph = GLYPHS[e.glyph]
+      ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPHS[e.glyph]}</svg>`
+      : `<span>${e.name[0]}</span>`;
+    const shots = e.shots.map((s, i) => {
+      const dx = i * 64 + (rand() - 0.5) * 40;
+      const dy = i * 88 + (rand() - 0.5) * 48;
+      const rot = (rand() - 0.5) * 12;
+      return `<img class="shot" src="/assets/timeline/${e.slug}/${s}" alt=""
+        loading="lazy" draggable="false"
+        style="left:${Math.max(0, dx)}px; top:${Math.max(0, dy)}px; transform: rotate(${rot.toFixed(1)}deg); z-index:${i + 1}">`;
+    }).join('');
+    el.innerHTML = `
+      <span class="entry__when">${fmt(e.d)} ${e.d.getFullYear()}</span>
+      <a class="entry__head" href="/experiments/${e.slug}/">
+        <span class="entry__glyph">${glyph}</span>
+        <span class="entry__name">${e.name}</span>
+        <span class="entry__code">${e.date}</span>
+      </a>
+      <p class="entry__desc">${e.description}</p>
+      <div class="entry__meta">
+        <span class="entry__status" data-status="${e.status}">${e.status}</span>
+        <span class="entry__tech">${e.tech}</span>
+      </div>
+      <a class="entry__shots" href="/experiments/${e.slug}/" aria-label="Open ${e.name}">${shots}</a>`;
+    rail.appendChild(el);
+  }
+
+  // ---------- scrub: wheel maps to horizontal ----------
+  const isDesktop = () => matchMedia('(min-width: 641px)').matches;
+  timeline.addEventListener('wheel', e => {
+    if (!isDesktop()) return;
+    if (Math.abs(e.deltaY) > Math.abs(e.deltaX)) {
+      timeline.scrollLeft += e.deltaY;
+      e.preventDefault();
+      hint.classList.add('gone');
+    }
+  }, { passive: false });
+
+  // ---------- drag to pan (suppresses the click if it was a drag) ----------
+  let dragging = false, dragMoved = false, sx = 0, sl = 0;
+  timeline.addEventListener('pointerdown', e => {
+    if (!isDesktop()) return;
+    dragging = true; dragMoved = false;
+    sx = e.clientX; sl = timeline.scrollLeft;
+  });
+  addEventListener('pointermove', e => {
+    if (!dragging) return;
+    const dx = e.clientX - sx;
+    if (Math.abs(dx) > 6) {
+      dragMoved = true;
+      timeline.classList.add('dragging');
+      hint.classList.add('gone');
+    }
+    if (dragMoved) timeline.scrollLeft = sl - dx;
+  });
+  addEventListener('pointerup', () => {
+    dragging = false;
+    timeline.classList.remove('dragging');
+  });
+  timeline.addEventListener('click', e => {
+    if (dragMoved) { e.preventDefault(); e.stopPropagation(); dragMoved = false; }
+  }, true);
+
+  // ---------- intro sweep to the latest entry ----------
+  if (isDesktop()) {
+    const target = Math.max(0, x(entries.at(-1).d) - innerWidth * 0.32);
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      timeline.scrollLeft = target;
+    } else {
+      const from = Math.max(0, target - 560);
+      timeline.scrollLeft = from;
+      const t0 = performance.now(), D = 900;
+      (function sweep(now) {
+        const p = Math.min((now - t0) / D, 1);
+        timeline.scrollLeft = from + (target - from) * (1 - Math.pow(1 - p, 3));
+        if (p < 1) requestAnimationFrame(sweep);
+      })(t0);
+    }
+  }
+
+  // ---------- theme pill (ported from ravivasavan.com) ----------
+  const CYCLE = ['day', 'night', 'system'];
+  document.querySelector('[data-theme-toggle]').addEventListener('click', () => {
+    const html = document.documentElement;
+    const next = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
+    html.dataset.theme = next;
+    try { localStorage.setItem('theme', next); } catch (e) {}
+  });
+})();
+</script>
 </body>
 </html>

@@ -1,0 +1,14 @@
+{
+  "experiments": [
+    {
+      "slug": "magnetic",
+      "name": "Magnetic",
+      "date": "20260731",
+      "description": "Scattered windows that magnetise into a portrait",
+      "status": "live",
+      "tech": "vanilla JS, spring physics",
+      "glyph": "magnet",
+      "shots": ["scattered.png", "assembled.png", "assembled-night.png"]
+    }
+  ]
+}
