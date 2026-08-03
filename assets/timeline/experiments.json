@@ -8,7 +8,11 @@
       "status": "live",
       "tech": "vanilla JS, spring physics",
       "glyph": "magnet",
-      "shots": ["scattered.png", "assembled.png", "assembled-night.png"]
+      "shots": [
+        "scattered.png",
+        "assembled.png",
+        "assembled-night.png"
+      ]
     },
     {
       "slug": "block",
@@ -19,7 +23,26 @@
       "tech": "Are.na API, static build, daily cron",
       "glyph": "frame",
       "url": "https://block.ravivasavan.com",
-      "shots": ["warm.png", "teal.png", "violet.png"]
+      "shots": [
+        "warm.png",
+        "teal.png",
+        "violet.png"
+      ]
+    },
+    {
+      "slug": "arena-stats",
+      "name": "Arena Stats",
+      "date": "20260803",
+      "description": "Every block you've made on Are.na, counted",
+      "status": "live",
+      "tech": "React, Are.na v3 API, no backend",
+      "glyph": "chart",
+      "url": "https://ravivasavan.github.io/arena-stats/",
+      "shots": [
+        "overview.png",
+        "calendar.png",
+        "rhythm.png"
+      ]
     }
   ]
 }
