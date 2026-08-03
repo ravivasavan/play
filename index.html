@@ -344,7 +344,8 @@
       .week, .rule, .tick, .dot { display: none; }
       .entry { position: static; width: auto; margin: 0 0 72px; }
       .entry__when { display: block !important; }
-      .entry__shots { height: 300px; }
+      /* 160px shots are 100px tall, and the loosest cascade reaches ~216px */
+      .entry__shots { height: 320px; }
       .shot { width: 160px; }
       #hint { display: none; }
 
@@ -558,15 +559,24 @@
     const glyph = GLYPHS[e.glyph]
       ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPHS[e.glyph]}</svg>`
       : `<span>${e.name[0]}</span>`;
+    // Each entry draws its own character once — how far cards kick sideways,
+    // how loosely they cascade, how hard the stack leans, and which row sits
+    // proud. Per-shot jitter then varies cards inside that character. Without
+    // this per-entry layer the geometry was identical for everyone and only
+    // the tilt differed, so every stack read as the same setup repeated.
+    const kick = 48 + rand() * 52;    // 48–100  sideways travel
+    const pitch = 76 + rand() * 26;   // 76–102  vertical step
+    const lean = 1.5 + rand() * 2.1;  // 1.5–3.6 base tilt
+    const phase = rand() < 0.5 ? 1 : 0;
     const shots = e.shots.map((s, i) => {
       // Gentle zigzag: cards alternate left / right as they cascade down.
-      // Every draw is one-directional on purpose — a symmetric jitter round 0
+      // Rotation stays one-directional on purpose — a symmetric jitter round 0
       // let a slug land its whole stack on the opposite lean and read as a
       // different family from its neighbours. Slugs vary within the range,
       // never across it.
-      const dx = (i % 2 ? 66 : 2) + rand() * 16;
-      const dy = i * 92 + (rand() - 0.5) * 20;
-      const rot = 1.2 + rand() * 2.6;
+      const dx = (i % 2 === phase ? kick : 0) + rand() * 24;
+      const dy = i * pitch + (rand() - 0.5) * 24;
+      const rot = lean + (rand() - 0.5) * 1.6;
       return `<img class="shot" src="/assets/timeline/${e.slug}/${s}" alt=""
         loading="lazy" draggable="false"
         style="left:${dx.toFixed(1)}px; top:${Math.max(0, dy).toFixed(1)}px; transform: rotate(${rot.toFixed(1)}deg); z-index:${i + 1}">`;
