@@ -9,6 +9,17 @@
       "tech": "vanilla JS, spring physics",
       "glyph": "magnet",
       "shots": ["scattered.png", "assembled.png", "assembled-night.png"]
+    },
+    {
+      "slug": "block",
+      "name": "Block",
+      "date": "20260731",
+      "description": "A block a day from an Are.na channel",
+      "status": "live",
+      "tech": "Are.na API, static build, daily cron",
+      "glyph": "frame",
+      "url": "https://block.ravivasavan.com",
+      "shots": ["warm.png", "teal.png", "violet.png"]
     }
   ]
 }

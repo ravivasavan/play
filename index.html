@@ -413,7 +413,8 @@
   </div>
 
   <noscript>
-    <p style="padding: 160px 24px"><a href="/20260731/magnetic/">Magnetic — scattered elements that magnetise into a layout</a></p>
+    <p style="padding: 160px 24px 0"><a href="/20260731/magnetic/">Magnetic — scattered elements that magnetise into a layout</a></p>
+    <p style="padding: 12px 24px"><a href="https://block.ravivasavan.com">Block — a block a day from an Are.na channel</a></p>
   </noscript>
 
 <script>
@@ -424,11 +425,13 @@
 
   const PPD = 56;          // px per day
   const PAD = 64;          // rail end padding
+  const ENTRY_W = 460;     // matches .entry width (mobile folds and ignores left)
   const RULE_Y = 320;      // y of the dashed rule — clear of the header chrome
   const DAY_MS = 86400000;
 
   const GLYPHS = {
-    magnet: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3z"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>'
+    magnet: '<path d="m6 15-4-4 6.75-6.77a7.79 7.79 0 0 1 11 11L13 22l-4-4 6.39-6.36a2.14 2.14 0 0 0-3-3z"/><path d="m5 8 4 4"/><path d="m12 15 4 4"/>',
+    frame: '<line x1="22" x2="2" y1="6" y2="6"/><line x1="22" x2="2" y1="18" y2="18"/><line x1="6" x2="6" y1="2" y2="22"/><line x1="18" x2="18" y1="2" y2="22"/>'
   };
 
   // deterministic per-slug jitter so the scatter is stable between visits
@@ -490,13 +493,20 @@
   }
 
   // entries
+  const placed = [];
+  const dotted = new Set();
   for (const e of entries) {
     const rand = seeded(e.slug);
-    const dot = document.createElement('div');
-    dot.className = 'dot';
-    dot.style.left = (x(e.d) - 4) + 'px';
-    dot.style.top = (RULE_Y - 4) + 'px';
-    rail.appendChild(dot);
+    // several experiments can share a filing date — one dot serves them all
+    if (!dotted.has(e.date)) {
+      dotted.add(e.date);
+      const dot = document.createElement('div');
+      dot.className = 'dot';
+      dot.style.left = (x(e.d) - 4) + 'px';
+      dot.style.top = (RULE_Y - 4) + 'px';
+      rail.appendChild(dot);
+    }
+    const href = e.url || `/${e.date}/${e.slug}/`;
     const el = document.createElement('article');
     el.className = 'entry';
     // glyph is 48px wide — shift the entry so the glyph centre sits on the date
@@ -516,7 +526,7 @@
     }).join('');
     el.innerHTML = `
       <span class="entry__when">${fmt(e.d)} ${e.d.getFullYear()}</span>
-      <a class="entry__head" href="/${e.date}/${e.slug}/">
+      <a class="entry__head" href="${href}">
         <span class="entry__glyph">${glyph}</span>
         <span class="entry__name">${e.name}</span>
         <span class="entry__code">${e.date}</span>
@@ -526,8 +536,29 @@
         <span class="entry__status" data-status="${e.status}">${e.status}</span>
         <span class="entry__tech">${e.tech}</span>
       </div>
-      <a class="entry__shots" href="/${e.date}/${e.slug}/" aria-label="Open ${e.name}">${shots}</a>`;
+      <a class="entry__shots" href="${href}" aria-label="Open ${e.name}">${shots}</a>`;
     rail.appendChild(el);
+    placed.push({ el, left: x(e.d) - 24 });
+  }
+
+  // Entries are 460px wide but a day is only 56px of rail, so anything filed
+  // within ~8 days of a neighbour would land on top of it. Nudge each one
+  // rightwards until it clears the previous — they all keep hanging from the
+  // rule, and the scrub reaches them the same way. Entries sharing a date
+  // (both filed 20260731) sit side by side under their one dot; the date code
+  // in each head is what pins it to the day.
+  const GAP_X = 24;
+  let cursor = -Infinity, furthest = 0;
+  for (const p of placed) {
+    const l = Math.max(p.left, cursor + GAP_X);
+    p.el.style.left = l + 'px';
+    cursor = l + ENTRY_W;
+    furthest = cursor;
+  }
+  // keep the rail long enough for anything a nudge pushed past the last week
+  if (furthest + PAD > railW) {
+    rail.style.width = (furthest + PAD) + 'px';
+    rule.style.width = (furthest + PAD) + 'px';
   }
 
   // ---------- scrub: wheel maps to horizontal ----------
