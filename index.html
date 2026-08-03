@@ -558,13 +558,17 @@
       ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${GLYPHS[e.glyph]}</svg>`
       : `<span>${e.name[0]}</span>`;
     const shots = e.shots.map((s, i) => {
-      // gentle zigzag: cards alternate left / right as they cascade down
-      const dx = (i % 2 ? 70 : 0) + (rand() - 0.5) * 36;
-      const dy = i * 92 + (rand() - 0.5) * 36;
-      const rot = (rand() - 0.5) * 10;
+      // Gentle zigzag: cards alternate left / right as they cascade down.
+      // Every draw is one-directional on purpose — a symmetric jitter round 0
+      // let a slug land its whole stack on the opposite lean and read as a
+      // different family from its neighbours. Slugs vary within the range,
+      // never across it.
+      const dx = (i % 2 ? 66 : 2) + rand() * 16;
+      const dy = i * 92 + (rand() - 0.5) * 20;
+      const rot = 1.2 + rand() * 2.6;
       return `<img class="shot" src="/assets/timeline/${e.slug}/${s}" alt=""
         loading="lazy" draggable="false"
-        style="left:${Math.max(0, dx)}px; top:${Math.max(0, dy)}px; transform: rotate(${rot.toFixed(1)}deg); z-index:${i + 1}">`;
+        style="left:${dx.toFixed(1)}px; top:${Math.max(0, dy).toFixed(1)}px; transform: rotate(${rot.toFixed(1)}deg); z-index:${i + 1}">`;
     }).join('');
     el.innerHTML = `
       <span class="entry__when">${fmt(e.d)} ${e.d.getFullYear()}</span>
