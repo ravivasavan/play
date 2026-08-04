@@ -84,24 +84,90 @@
       /* minmax(0, …) or the canvas's own width inflates the column: a plain
          1fr refuses to go below its content, so the stage would measure as
          wide as the page and the fit-to-width below could never trigger. */
-      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-columns: minmax(0, 1fr) var(--panel-w);
     }
 
     /* ---- chrome: two levels, same as magnetic ----
-       Top row is the site's: back to play, the identity pill, the theme
-       switch. Second row is this experiment's own buttons. Both anchor left,
-       over the stage, because the right-hand side is the control panel. */
-    .pills {
+       Top row is the site's, divided from the rest by a rule across the full
+       width: back to play at the left, the identity pill centred on the same
+       3-track grid ravivasavan.com and the play index use, the theme switch at
+       the right. The rule is what lets the theme switch sit at the true right
+       edge without reading as part of the panel — everything above the line is
+       the site's, everything below it is the tool. */
+    :root {
+      --chrome-top: 40px;
+      --chrome-rule: 120px;
+      --chrome-tools: 136px;
+      --chrome-pad: 40px;
+      --panel-w: 360px;
+    }
+
+    .chrome {
       position: fixed;
-      top: 40px;
+      top: var(--chrome-top);
+      left: 0;
+      right: 0;
+      z-index: 500;
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      align-items: center;
+      padding: 0 var(--chrome-pad);
+      pointer-events: none;
+    }
+    .chrome > * { pointer-events: auto; }
+    .chrome__back  { justify-self: start; }
+    .chrome__id    { justify-self: center; }
+    .chrome__theme { justify-self: end; }
+
+    .chrome-rule {
+      position: fixed;
+      top: var(--chrome-rule);
+      left: 0;
+      right: 0;
+      border-top: 1px solid var(--separator);
+      z-index: 499;
+      pointer-events: none;
+    }
+
+    /* This experiment's own row sits left, over the stage: its right-hand side
+       is the control panel. */
+    .tools {
+      position: fixed;
+      top: var(--chrome-tools);
+      left: var(--chrome-pad);
       z-index: 500;
       display: flex;
       align-items: center;
       gap: 8px;
     }
-    /* 40px in, one 64px pill down, 8px of air */
-    .pills--tools { top: 112px; }
-    .pills--left { left: 40px; }
+
+    /* Experiment-level pills are deliberately not the site's: shorter, flat
+       rather than glass, and each one says in a word what it does. */
+    .tool-pill[hidden] { display: none; }
+    .tool-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      height: 44px;
+      padding: 0 14px 0 12px;
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent);
+      border-radius: 22px;
+      background: transparent;
+      color: var(--ink);
+      font: inherit;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+    .tool-pill:hover,
+    .tool-pill:focus-visible {
+      background: var(--separator);
+      border-color: color-mix(in srgb, var(--ink) 28%, transparent);
+    }
+    .tool-pill__icon { display: grid; place-items: center; width: 16px; height: 16px; flex-shrink: 0; }
+    .tool-pill__icon svg { grid-area: 1 / 1; width: 16px; height: 16px; }
+    .tool-pill.is-on { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, transparent); }
 
     .header-pill {
       background: var(--pill-bg);
@@ -211,9 +277,9 @@
       overflow: auto;
       display: grid;
       place-items: center;
-      /* Clears both chrome rows: the tools row ends at 176px, and on a narrow
+      /* Clears both chrome rows: the tools row ends at 180px, and on a narrow
          desktop window the centred page is wide enough to reach the pills. */
-      padding: 192px 40px 48px;
+      padding: 204px 40px 48px;
     }
     #screen-wrap { display: grid; gap: 16px; justify-items: center; }
     /* The page never inverts with the theme: teletext is black, full stop.
@@ -234,11 +300,25 @@
     /* ---- controls ---- */
     #panel {
       overflow-y: auto;
-      padding: 120px 32px 48px;
-      border-left: 1px solid var(--separator);
+      /* Starts below the rule, so the panel reads as sitting under the site's
+         chrome rather than colliding with it. */
+      padding: 152px 32px 48px;
+      /* No border-left: the edge is drawn below the rule instead (see
+         ::before), so the site's band runs across the top unbroken rather than
+         being cut into a box by the panel's edge. */
       display: grid;
       gap: 20px;
       align-content: start;
+    }
+    #panel::before {
+      content: '';
+      position: fixed;
+      top: var(--chrome-rule);
+      bottom: 0;
+      right: var(--panel-w);
+      width: 0;
+      border-left: 1px solid var(--separator);
+      pointer-events: none;
     }
     .group { display: grid; gap: 8px; }
     .group > h2 {
@@ -304,27 +384,32 @@
     @media (max-width: 900px) {
       body { grid-template-columns: minmax(0, 1fr); overflow: auto; }
       html, body { height: auto; }
-      .pills { top: 16px; }
-      .pills--tools { top: 88px; }
-      .pills--left { left: 16px; }
+      :root {
+        --chrome-top: 16px;
+        --chrome-rule: 96px;
+        --chrome-tools: 112px;
+        --chrome-pad: 16px;
+      }
       .header-pill__role { display: none; }
       #stage { padding: 168px 16px 24px; overflow: visible; }
-      #panel { border-left: 0; border-top: 1px solid var(--separator); padding: 24px 16px 64px; overflow: visible; }
+      /* Folded, the panel sits under the stage, so its edge is a top border
+         again and the fixed divider goes away. */
+      #panel { border-top: 1px solid var(--separator); padding: 24px 16px 64px; overflow: visible; }
+      #panel::before { display: none; }
     }
   </style>
 </head>
 <body>
-  <!-- Top row, site level: back, identity, theme. All left-anchored over the
-       stage, since the right-hand side is the control panel. -->
-  <div class="pills pills--left">
-    <a class="icon-pill" href="/" aria-label="Back to play index">
+  <!-- Top row, site level: back left, identity centred, theme hard right. -->
+  <div class="chrome">
+    <a class="icon-pill chrome__back" href="/" aria-label="Back to play index">
       <span class="icon-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="m15 18-6-6 6-6"/>
         </svg>
       </span>
     </a>
-    <header class="header-pill">
+    <header class="header-pill chrome__id">
       <div class="header-pill__inner">
         <div class="header-pill__avatar">
           <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"> <rect width="2.00001" height="2.00001" transform="matrix(-1 0 0 1 32 13)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 20 13)" fill="currentColor"/> <path d="M34.0098 34.9766V48H36V34.9766H34.0098ZM13.9902 34.9766H12V48H13.9902V35.0293H15.9805V32.9814H13.9902V34.9766ZM32 13H16V9H14V17H16V15H32V25H30V27H18V31H16V33H18V35H30V33H32V35H34V33H32V31H34V15H40V13H34V9H32V13ZM12 22H14V17H12V22ZM28 21H30V19H28V21ZM20 21H22V19H20V21ZM30 9H32V7H30V9ZM16 9H18V7H16V9ZM18 7H30V5H18V7Z" fill="currentColor"/> <rect width="4" height="6" transform="matrix(-1 0 0 1 18 27)" fill="currentColor"/> <rect width="2.00001" height="4.00001" transform="matrix(-1 0 0 1 16 21)" fill="currentColor"/> <path d="M16 25H18V21H16V25Z" fill="currentColor"/> <rect width="16.0001" height="2.00001" transform="matrix(-1 0 0 1 30 25)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 32 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 24 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 28 21)" fill="currentColor"/> </svg>
@@ -335,7 +420,7 @@
         </div>
       </div>
     </header>
-    <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
+    <button class="icon-pill icon-pill--theme chrome__theme" type="button" aria-label="Toggle theme" data-theme-toggle>
       <span class="icon-pill__icon">
         <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
@@ -350,23 +435,29 @@
     </button>
   </div>
 
-  <!-- Second row: teletext's own buttons. These two used to be a button and a
-       checkbox in the panel; the panel keeps the settings, the row takes the
-       actions, and neither is duplicated. -->
-  <nav class="pills pills--left pills--tools" aria-label="Teletext controls">
-    <button class="icon-pill" id="p-random" type="button" aria-label="Randomise the page">
-      <span class="icon-pill__icon">
+  <!-- The rule marks where the site's chrome ends and this experiment's begins. -->
+  <div class="chrome-rule" aria-hidden="true"></div>
+
+  <!-- Second row: teletext's own buttons, labelled. These two used to be a
+       button and a checkbox in the panel; the panel keeps the settings, the row
+       takes the actions, and neither is duplicated. Reveal is what the button
+       was called on the remote. -->
+  <nav class="tools" aria-label="Teletext controls">
+    <button class="tool-pill" id="p-random" type="button" aria-label="Randomise the page">
+      <span class="tool-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/>
         </svg>
       </span>
+      <span class="tool-pill__label">Randomise</span>
     </button>
-    <button class="icon-pill" id="p-reveal" type="button" aria-label="Reveal the control codes" aria-pressed="false">
-      <span class="icon-pill__icon">
+    <button class="tool-pill" id="p-reveal" type="button" aria-label="Reveal the control codes" aria-pressed="false">
+      <span class="tool-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>
         </svg>
       </span>
+      <span class="tool-pill__label">Reveal</span>
     </button>
   </nav>
 
