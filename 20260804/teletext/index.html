@@ -97,7 +97,6 @@
       gap: 8px;
     }
     .pills--left { left: 40px; }
-    .pills--right { right: 40px; }
 
     .icon-pill {
       background: var(--pill-bg);
@@ -274,13 +273,14 @@
       html, body { height: auto; }
       .pills { top: 16px; }
       .pills--left { left: 16px; }
-      .pills--right { right: 16px; }
       #stage { padding: 96px 16px 24px; overflow: visible; }
       #panel { border-left: 0; border-top: 1px solid var(--separator); padding: 24px 16px 64px; overflow: visible; }
     }
   </style>
 </head>
 <body>
+  <!-- Both pills live top-left, over the stage: the theme pill used to sit at
+       top-right, where it floated on top of the control panel. -->
   <div class="pills pills--left">
     <a class="icon-pill" href="/" aria-label="Back to play index">
       <span class="icon-pill__icon">
@@ -289,6 +289,19 @@
         </svg>
       </span>
     </a>
+    <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
+      <span class="icon-pill__icon">
+        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+        </svg>
+        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+        </svg>
+        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
+        </svg>
+      </span>
+    </button>
   </div>
 
   <main id="stage">
@@ -302,6 +315,12 @@
   <aside id="panel">
     <div class="group">
       <h2>Page</h2>
+      <label class="field">Service spec
+        <select id="c-spec">
+          <option value="ceefax">Ceefax · BBC</option>
+          <option value="austext">Austext · Seven</option>
+        </select>
+      </label>
       <div class="row">
         <label class="field">Number
           <input id="c-number" type="number" min="100" max="899" step="1" value="100">
@@ -405,22 +424,6 @@
     </div>
   </aside>
 
-  <div class="pills pills--right">
-    <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
-      <span class="icon-pill__icon">
-        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
-        </svg>
-        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-        </svg>
-        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
-        </svg>
-      </span>
-    </button>
-  </div>
-
 <script>
 (() => {
   'use strict';
@@ -454,7 +457,7 @@
   // both switch character set as well as colour, which is why a coloured
   // mosaic run always starts with one of the 0x1x codes.
   const AC = c => c, GC = c => 0x10 | c;
-  const FLASH = 0x08, STEADY = 0x09, NSZ = 0x0C, DBH = 0x0D,
+  const FLASH = 0x08, STEADY = 0x09, NSZ = 0x0C, DBH = 0x0D, CONCEAL = 0x18,
         CONTIG = 0x19, SEPD = 0x1A, BLACK_BG = 0x1C, NEW_BG = 0x1D,
         HOLD = 0x1E, RELEASE = 0x1F;
   const isCode = v => v < 0x20;
@@ -483,10 +486,11 @@
   // "set-at" (they affect their own cell) or "set-after" (from the next cell
   // on) — that distinction is why a foreground colour code shows as a space in
   // the *old* colour, while a background code paints its own cell.
-  const SET_AT = new Set([NSZ, CONTIG, SEPD, BLACK_BG, NEW_BG, HOLD, STEADY]);
+  const SET_AT = new Set([NSZ, CONTIG, SEPD, BLACK_BG, NEW_BG, HOLD, STEADY, CONCEAL]);
 
   function render(ctx, Z, opts = {}) {
     const { reveal = false, flashOn = true } = opts;
+    opts.revealed = opts.revealed ?? false;
     ctx.fillStyle = CLUT[BLACK];
     ctx.fillRect(0, 0, COLS * CELL_W * Z, ROWS * CELL_H * Z);
     ctx.textBaseline = 'alphabetic';
@@ -499,7 +503,7 @@
       if (swallowed[r]) continue;
 
       let fg = WHITE, bg = BLACK, gfx = false, sep = false, hold = false,
-          held = 0x20, flash = false, dbl = false;
+          held = 0x20, flash = false, dbl = false, conceal = false;
 
       for (let c = 0; c < COLS; c++) {
         const v = at(r, c);
@@ -516,6 +520,7 @@
             else if (v === HOLD) { hold = true; }
             else if (v === NSZ) { dbl = false; drawDbl = false; }
             else if (v === STEADY) { flash = false; drawFlash = false; }
+            else if (v === CONCEAL) { conceal = true; }
           }
           // The code still occupies a cell. Held mosaics repeat the last
           // mosaic here instead of leaving the black notch that gives
@@ -539,7 +544,9 @@
           ctx.fillRect(x, y, CELL_W * Z, CELL_H * Z * (drawDbl ? 2 : 1));
         }
 
-        const hidden = drawFlash && !flashOn;
+        // Concealed cells stay blank until REVEAL, and hold that way to the end
+        // of the row like every other attribute.
+        const hidden = (drawFlash && !flashOn) || (conceal && !opts.revealed);
         if (!hidden && glyph !== 0x20) {
           ctx.fillStyle = CLUT[drawFg];
           if (drawGfx && isMosaic(glyph)) drawMosaic(ctx, x, y, Z, maskOf(glyph), drawSep, drawDbl);
@@ -646,6 +653,50 @@
     return out;
   }
 
+  // ------------------------------------------------------------------- specs
+  // Two services, one standard. Both Ceefax and Austext were 625-line World
+  // System Teletext, so the page itself — 40 × 25, eight colours, spacing
+  // attributes — is identical. What differed was house convention, and the
+  // differences below are the ones that can be checked rather than guessed.
+  //
+  //   Ceefax  BBC, 23 Sep 1974 → 23 Oct 2012. Content split across eight
+  //           "magazines" numbered 100–800, one per category. Subtitles on
+  //           888. Fastext, so row 24 carries four coloured links.
+  //   Austext Seven Network, run out of Brisbane. Tests 1979, live 4 Feb 1980,
+  //           a properly useful service from 1982 in Brisbane and Sydney,
+  //           closed 30 Sep 2009. Navigation was numeric — no evidence it ever
+  //           carried fastext — so row 24 prompts for a page number instead.
+  //           Captions sat on 801 and were branded Supertext when the
+  //           Australian Caption Centre produced them.
+  //
+  // Page numbers below are only the ones that are actually documented: 888,
+  // 801, and Ceefax's sport at 300. Austext's sections are named without
+  // numbers rather than invent them.
+  const SPECS = {
+    ceefax: {
+      label: 'Ceefax · BBC',
+      service: 'CEEFAX 1',
+      subtitlePage: 888,
+      subtitleLabel: 'SUBTITLES 888',
+      fastext: true,
+      links: ['INDEX', 'NEWS', 'SPORT', 'A-Z'],
+      onAir: '1974 — 2012',
+      signOff: 'CEEFAX CLOSED 23 OCT 2012',
+      index: 'CEEFAX INDEX\nNEWS HEADLINES 101\nSPORT 300\nWEATHER\nTV GUIDE\nSUBTITLES 888'
+    },
+    austext: {
+      label: 'Austext · Seven',
+      service: 'AUSTEXT',
+      subtitlePage: 801,
+      subtitleLabel: 'SUPERTEXT 801',
+      fastext: false,
+      prompt: 'SELECT PAGE NUMBER',
+      onAir: '1980 — 2009',
+      signOff: 'AUSTEXT CLOSED 30 SEP 2009',
+      index: 'AUSTEXT INDEX\nNEWS\nRACING AND TAB\nLOTTERIES\nWEATHER\nTV GUIDE\nSUPERTEXT 801'
+    }
+  };
+
   // ------------------------------------------------------------------ palette
   // Named after the services whose pages they came off.
   const SCHEMES = [
@@ -670,11 +721,16 @@
 
   // ----------------------------------------------------------------- content
   const state = {
-    number: 100, service: 'PLAY', layout: 'headline',
+    number: 100, service: 'PLAY', layout: 'headline', spec: 'ceefax',
     copy: '', links: [], scheme: 0, seed: 'p100',
     double: true, separated: false, hold: true, flash: false, reveal: false,
-    scale: 2, autoScale: true, dither: 'ordered', changes: 6, picture: null
+    scale: 2, autoScale: true, dither: 'ordered', changes: 6, picture: null,
+    // revealed = the REVEAL button on the remote, which uncovered text hidden
+    // behind a Conceal code. testCard and pagesFrom are the other two hidden
+    // modes; none of the three are advertised in the panel.
+    revealed: false, testCard: false, pagesFrom: false
   };
+  const spec = () => SPECS[state.spec];
 
   // Seeded starting copy, so the page arrives already composed. Nothing here
   // pretends to be news — it's about this site.
@@ -692,6 +748,10 @@
     const rand = seeded(state.seed);
     const S = SCHEMES[state.scheme] || SCHEMES[0];
     headerRow();
+    // Tune to the service's subtitle page and you get subtitles, exactly as
+    // punching 888 into a UK remote did — or 801 in Australia.
+    if (state.number === spec().subtitlePage) { subtitlePage(S); return; }
+    if (state.testCard) { testCardPage(S); fastextRow(); return; }
     if (state.picture) picturePage(S);
     else if (state.layout === 'index') indexPage(S, rand);
     else if (state.layout === 'newsflash') newsflashPage(S, rand);
@@ -716,14 +776,60 @@
     writer(0, COLS - stamp.length).text(stamp, WHITE);
   }
 
-  // Row 24 is fastext: four links on the four coloured remote buttons.
+  // Row 24 is the navigation row. Ceefax had fastext, so it carries four links
+  // on the four coloured remote buttons. Austext was navigated by typing page
+  // numbers, so it gets a prompt instead of links it never had.
   function fastextRow() {
+    if (!spec().fastext) {
+      const prompt = spec().prompt;
+      writer(ROWS - 1, cost(prompt.length, 1)).text(prompt, CYAN);
+      return;
+    }
     const keys = [RED, GREEN, YELLOW, CYAN];
-    const labels = state.links.length ? state.links : ['INDEX', 'BACK', 'FORWARD', 'A-Z'];
+    const labels = state.links.length ? state.links : spec().links;
     for (let i = 0; i < 4; i++) {
       const w = writer(ROWS - 1, i * 10);
       w.colour(keys[i]).text((labels[i] || '').toUpperCase().slice(0, 9));
     }
+  }
+
+  // Subtitles were a nearly-empty page: one boxed band of text near the bottom,
+  // keyed over the programme. Everything else stayed black so the picture
+  // showed through.
+  function subtitlePage(S) {
+    const { title, rest } = lines();
+    const said = (rest || title || 'and now the news, read by nobody at all').trim();
+    const wrapped = wrap(said, 34).filter(Boolean).slice(0, 2);
+    let r = ROWS - 4 - wrapped.length;
+    for (const line of wrapped) {
+      // Start/End Box is what made subtitles legible over video. Level 1 draws
+      // them as ordinary cells here, since there's no picture behind them.
+      const w = writer(r, cost(line.length, 3));
+      w.code(0x0B).colour(WHITE).text(line).code(0x0A);
+      r++;
+    }
+    writer(1, 1).text(spec().subtitleLabel, CYAN);
+  }
+
+  // Engineering test page: eight colour bars, exactly five columns each, which
+  // is the only way 40 columns divides evenly once every bar has spent a cell
+  // on its own colour code. The line at the bottom sits behind a Conceal code —
+  // the trick quiz and results pages used, uncovered by REVEAL on the remote.
+  function testCardPage(S) {
+    for (let r = 2; r <= 13; r++) {
+      const w = writer(r, 0);
+      for (let i = 0; i < 8; i++) w.blocks(4, (i + 1) % 8, FULL);
+    }
+    for (let r = 14; r <= 15; r++) {
+      const w = writer(r, 0);
+      w.code(SEPD);
+      for (let i = 0; i < 8; i++) w.blocks(4, 7 - i, FULL);
+    }
+    writer(17, 1).text(spec().service + ' ENGINEERING TEST', WHITE);
+    writer(18, 1).text(spec().onAir, CYAN);
+    const w = writer(20, 1);
+    w.colour(YELLOW).code(0x18).text(spec().signOff);
+    writer(22, 1).text('PRESS REVEAL', WHITE);
   }
 
   function heading(row, text, colour) {
@@ -790,7 +896,8 @@
       }
       r++;
     }
-    strap(22, 'CHOOSE A PAGE', S.strap);
+    // Austext's row 24 already says how to navigate, so don't say it twice.
+    if (spec().fastext) strap(22, 'CHOOSE A PAGE', S.strap);
   }
 
   function newsflashPage(S, rand) {
@@ -1085,13 +1192,17 @@
       screen.width = w * dpr; screen.height = h * dpr;
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    render(ctx, Z, { reveal: state.reveal, flashOn: reduced || flashOn });
+    render(ctx, Z, { reveal: state.reveal, flashOn: reduced || flashOn, revealed: state.revealed });
 
     // How much of the page went on attributes rather than content.
     let codes = 0;
     for (let i = 0; i < page.length; i++) if (isCode(page[i])) codes++;
+    const mode = state.number === spec().subtitlePage ? 'subtitles'
+               : state.testCard ? 'test card'
+               : state.picture ? 'picture' : state.layout;
     caption.textContent = `40 × 25 · ${codes} cell${codes === 1 ? '' : 's'} spent on attributes` +
-      ` · ${state.picture ? 'picture' : state.layout} · ${SCHEMES[state.scheme].name}`;
+      ` · ${mode} · ${SCHEMES[state.scheme].name}` +
+      (state.revealed ? ' · revealed' : '') + (state.pagesFrom ? ' · pages from' : '');
   }
 
   function build() { compose(); paint(); }
@@ -1132,6 +1243,7 @@
   }
 
   function syncFields() {
+    el('c-spec').value = state.spec;
     el('c-number').value = state.number;
     el('c-service').value = state.service;
     el('c-layout').value = state.layout;
@@ -1153,8 +1265,23 @@
     build();
   });
   bind('c-number', 'number', t => Math.max(100, Math.min(899, +t.value || 100)));
-  bind('c-service', 'service', t => t.value);
   bind('c-copy', 'copy', t => t.value);
+
+  // Switching service brings its own branding and index with it, on the same
+  // terms as the layout switch: until you've typed your own, it's not yours.
+  let serviceMine = false;
+  el('c-service').addEventListener('input', e => {
+    serviceMine = true;
+    state.service = e.target.value;
+    build();
+  });
+  el('c-spec').addEventListener('input', e => {
+    state.spec = e.target.value;
+    if (!serviceMine) state.service = spec().service;
+    if (!copyMine && state.layout === 'index') state.copy = spec().index;
+    syncFields();
+    build();
+  });
 
   // An index wants entries and a headline wants prose, so switching layout
   // brings that layout's seeded copy with it — until you've typed your own,
@@ -1166,6 +1293,9 @@
     if (!copyMine) {
       const pick = SEEDS.find(s => s.layout === state.layout);
       if (pick) { state.copy = pick.copy; state.scheme = pick.scheme; syncFields(); }
+      // An index is the one page where the service's own contents list beats
+      // anything generic.
+      if (state.layout === 'index') { state.copy = spec().index; syncFields(); }
     }
     build();
   });
@@ -1244,6 +1374,53 @@
     }
     setTimeout(() => { note.textContent = was; }, 2600);
   });
+
+  // Buttons the remote had that the panel doesn't ------------------------------
+  // REVEAL uncovered concealed text; the engineering test page was tucked away
+  // where viewers wouldn't find it; and Pages From Ceefax turned the whole thing
+  // into a slideshow with music between programmes on BBC Two from 1982 until
+  // the service closed. None of these are advertised in the panel.
+  let cycle = null;
+  const CYCLE_LAYOUTS = ['headline', 'index', 'newsflash', 'art'];
+
+  function nextPage() {
+    const i = CYCLE_LAYOUTS.indexOf(state.layout);
+    state.layout = CYCLE_LAYOUTS[(i + 1) % CYCLE_LAYOUTS.length];
+    state.scheme = (state.scheme + 1) % SCHEMES.length;
+    if (!copyMine) {
+      const pick = SEEDS.find(s => s.layout === state.layout);
+      if (pick) state.copy = pick.copy;
+      if (state.layout === 'index') state.copy = spec().index;
+    }
+    syncFields();
+    build();
+  }
+
+  function stopCycle() {
+    if (cycle) { clearInterval(cycle); cycle = null; }
+    state.pagesFrom = false;
+  }
+
+  addEventListener('keydown', e => {
+    // Never steal a key from someone typing their copy.
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return;
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if (k === 'r') { state.revealed = !state.revealed; paint(); }
+    else if (k === 't') { state.testCard = !state.testCard; stopCycle(); build(); }
+    else if (k === 'p') {
+      // Reduced motion gets a manual slideshow rather than an automatic one.
+      if (reduced) { nextPage(); return; }
+      if (state.pagesFrom) stopCycle();
+      else { state.pagesFrom = true; state.testCard = false; nextPage(); cycle = setInterval(nextPage, 4000); }
+      build();
+    } else return;
+    e.preventDefault();
+  });
+
+  // Touching any control drops out of the slideshow, so it can't fight you.
+  document.getElementById('panel').addEventListener('input', () => { if (state.pagesFrom) { stopCycle(); build(); } });
 
   // Theme --------------------------------------------------------------------
   const CYCLE = ['day', 'night', 'system'];
