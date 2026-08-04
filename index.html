@@ -36,6 +36,11 @@
       --pill-bg: rgba(255, 245, 245, 0.2);
       --pill-filter: blur(10px) saturate(180%);
       --pill-edge: inset 0 0 0 1px var(--separator);
+
+      /* The main site's measure, verbatim — so the tagline lands on the same
+         12 columns here as it does on ravivasavan.com. */
+      --shell-width: min(80%, 1440px);
+      --row-pad: 24px;
     }
     [data-theme="night"] {
       --bg: var(--night);
@@ -207,11 +212,30 @@
 
     .rail { position: relative; height: 100%; min-height: 760px; }
 
+    /* The tagline belongs to the page, not to the timeline. It used to be a
+       child of the rail, so scrubbing dragged it off screen and its left edge
+       was tied to the rail's padding rather than to the site's measure. It now
+       sits on ravivasavan.com's own 12-column grid — shell width min(80%,
+       1440px) inset by --row-pad, 32px gutters — fixed, and transparent to the
+       pointer so a drag can still start on top of it. */
+    .head-shell {
+      position: fixed;
+      top: 160px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: calc(var(--shell-width) - (var(--row-pad) * 2));
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 32px;
+      pointer-events: none;
+      z-index: 40;
+    }
     .tl-head {
-      position: absolute;
+      grid-column: 1 / span 3;
       font-size: 24px;
-      max-width: 300px;
       text-wrap: balance;
+      margin: 0;
+      font-weight: 400;
     }
 
     .week {
@@ -350,12 +374,27 @@
       .header-pills { top: 16px; }
     }
 
+    /* Same measure step the main site takes, so the tagline doesn't get
+       squeezed into three lines in the gap between fold and full width. */
+    @media (max-width: 900px) {
+      :root { --shell-width: calc(100% - 32px); }
+      .tl-head { grid-column: 1 / span 6; }
+    }
+
     /* Mobile — the rail folds into a vertical flow */
     @media (max-width: 640px) {
       body { overflow: auto; }
       #timeline { position: static; overflow: visible; cursor: auto; }
-      .rail { width: auto !important; height: auto; min-height: 0; padding: 128px 16px 80px; }
-      .tl-head { position: static; margin-bottom: 56px; }
+      .rail { width: auto !important; height: auto; min-height: 0; padding: 0 16px 80px; }
+      /* Folded, the tagline goes back into the flow above the rail and takes
+         over the rail's old top padding. */
+      .head-shell {
+        position: static;
+        transform: none;
+        width: auto;
+        display: block;
+        padding: 128px 16px 48px;
+      }
       .week, .rule, .tick, .dot { display: none; }
       .entry { position: static; width: auto; margin: 0 0 72px; }
       .entry__when { display: block !important; }
@@ -426,6 +465,10 @@
         </svg>
       </span>
     </button>
+  </div>
+
+  <div class="head-shell">
+    <h1 class="tl-head">Experiments, out in the open.</h1>
   </div>
 
   <div id="timeline"><div class="rail" id="rail"></div></div>
@@ -525,14 +568,7 @@
   const railW = Math.max(dayX[days] + PAD, dayX[last] - 24 + spanOf(last) + PAD);
   rail.style.width = railW + 'px';
 
-  // title block, rule, week bands
-  const head = document.createElement('h1');
-  head.className = 'tl-head';
-  head.style.left = PAD + 'px';
-  head.style.top = (RULE_Y - 160) + 'px';
-  head.textContent = 'Experiments, out in the open.';
-  rail.appendChild(head);
-
+  // rule and week bands — the tagline is page furniture now, not rail content
   const rule = document.createElement('div');
   rule.className = 'rule';
   rule.style.top = RULE_Y + 'px';
