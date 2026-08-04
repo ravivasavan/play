@@ -391,6 +391,23 @@
         --chrome-pad: 16px;
       }
       .header-pill__role { display: none; }
+      /* Folded, the tools row scrolls sideways rather than shedding its labels
+         or wrapping. Two pills fit a phone as it stands, so there's nothing to
+         scroll yet — the row is built for the third and fourth. */
+      .tools {
+        left: 0;
+        right: 0;
+        padding: 0 var(--chrome-pad);
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
+        scrollbar-width: none;
+        cursor: grab;
+      }
+      .tools::-webkit-scrollbar { display: none; }
+      .tools.dragging { cursor: grabbing; }
+      .tool-pill { flex: 0 0 auto; }
       #stage { padding: 168px 16px 24px; overflow: visible; }
       /* Folded, the panel sits under the stage, so its edge is a top border
          again and the fixed divider goes away. */
@@ -1626,6 +1643,34 @@
   // The clock in the header ticks, like a real service, and flash runs at ~1 Hz
   // (the spec leaves the rate to the receiver). Neither redraws the layout:
   // recomposing here would re-quantise a dropped picture twice a second.
+
+  // ---------- the tools row drags sideways ----------
+  // Folded, the row scrolls rather than dropping its labels. Touch pans it
+  // natively; this gives a pointer the same behaviour, and swallows the click
+  // that would otherwise fire on whichever button the drag ended over — the
+  // same guard the timeline uses for its scrub.
+  (function dragRow(row) {
+    if (!row) return;
+    let down = false, moved = false, sx = 0, sl = 0;
+    row.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'touch') return;              // native panning has it
+      if (row.scrollWidth <= row.clientWidth) return;      // nothing to scroll: leave
+      down = true; moved = false; sx = e.clientX; sl = row.scrollLeft;   // clicks alone
+    });
+    row.addEventListener('pointermove', e => {
+      if (!down) return;
+      const dx = e.clientX - sx;
+      if (Math.abs(dx) > 6) { moved = true; row.classList.add('dragging'); }
+      if (moved) { row.scrollLeft = sl - dx; e.preventDefault(); }
+    });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+      row.addEventListener(type, () => { down = false; row.classList.remove('dragging'); });
+    }
+    row.addEventListener('click', e => {
+      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
+    }, true);
+  })(document.querySelector('.tools'));
+
   document.fonts.load('20px Bedstead').then(build).catch(build);
   setInterval(() => { flashOn = !flashOn; headerRow(); paint(); }, 500);
 })();

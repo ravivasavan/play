@@ -283,10 +283,24 @@
         --chrome-pad: 12px;
       }
       .header-pill__role { display: none; }
-      /* Four labelled pills don't fit a phone, so the labels drop and the
-         pills close up into icons. */
-      .tool-pill__label { display: none; }
-      .tool-pill { padding: 0; width: 44px; justify-content: center; }
+      /* Four labelled pills don't fit a phone, so instead of dropping the
+         labels the row scrolls sideways. Touch pans it natively; a pointer
+         drag is wired up in script. touch-action has to be named explicitly
+         because the body sets touch-action: none for the window dragging. */
+      .tools {
+        left: 0;
+        right: 0;
+        padding: 0 var(--chrome-pad);
+        overflow-x: auto;
+        overscroll-behavior-x: contain;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-x;
+        scrollbar-width: none;
+        cursor: grab;
+      }
+      .tools::-webkit-scrollbar { display: none; }
+      .tools.dragging { cursor: grabbing; }
+      .tool-pill { flex: 0 0 auto; }
     }
 
     #stage {
@@ -906,6 +920,34 @@
     html.dataset.theme = next;
     try { localStorage.setItem('theme', next); } catch (e) {}
   });
+
+
+  // ---------- the tools row drags sideways ----------
+  // Folded, the row scrolls rather than dropping its labels. Touch pans it
+  // natively; this gives a pointer the same behaviour, and swallows the click
+  // that would otherwise fire on whichever button the drag ended over — the
+  // same guard the timeline uses for its scrub.
+  (function dragRow(row) {
+    if (!row) return;
+    let down = false, moved = false, sx = 0, sl = 0;
+    row.addEventListener('pointerdown', e => {
+      if (e.pointerType === 'touch') return;              // native panning has it
+      if (row.scrollWidth <= row.clientWidth) return;      // nothing to scroll: leave
+      down = true; moved = false; sx = e.clientX; sl = row.scrollLeft;   // clicks alone
+    });
+    row.addEventListener('pointermove', e => {
+      if (!down) return;
+      const dx = e.clientX - sx;
+      if (Math.abs(dx) > 6) { moved = true; row.classList.add('dragging'); }
+      if (moved) { row.scrollLeft = sl - dx; e.preventDefault(); }
+    });
+    for (const type of ['pointerup', 'pointercancel', 'pointerleave']) {
+      row.addEventListener(type, () => { down = false; row.classList.remove('dragging'); });
+    }
+    row.addEventListener('click', e => {
+      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
+    }, true);
+  })(document.querySelector('.tools'));
 
   build();
   requestAnimationFrame(render);
