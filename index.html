@@ -54,7 +54,14 @@
 
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; }
-    html { background: var(--bg); }
+    html {
+      background: var(--bg);
+      /* Reserve the scrollbar gutter — same as ravivasavan.com. The fixed
+         chrome is measured against the initial containing block, so without
+         this the centred pill lands half a scrollbar off from the main site
+         on platforms with classic (non-overlay) scrollbars. */
+      scrollbar-gutter: stable;
+    }
     body {
       background: var(--bg);
       color: var(--fg);
@@ -157,7 +164,9 @@
       position: relative;
       z-index: 1;
     }
-    .icon-pill__icon svg { grid-area: 1 / 1; width: 18px; height: 18px; }
+    /* 16px glyph on the 24 grid — same optical weight as the main site's
+       theme/play pills. */
+    .icon-pill__icon svg { grid-area: 1 / 1; width: 16px; height: 16px; }
 
     .icon-pill--theme .icon-pill__icon svg {
       opacity: 0;
@@ -335,6 +344,12 @@
     #hint svg.hand { width: 20px; height: 20px; }
     #hint.gone { opacity: 0; }
 
+    /* ≤900px — chrome steps up to 16px, matching ravivasavan.com. The rail
+       itself is untouched here; it folds at 640px below. */
+    @media (max-width: 900px) {
+      .header-pills { top: 16px; }
+    }
+
     /* Mobile — the rail folds into a vertical flow */
     @media (max-width: 640px) {
       body { overflow: auto; }
@@ -355,11 +370,18 @@
         align-items: center;
         justify-content: space-between;
         padding: 0 12px;
+        grid-template-columns: none;
+        gap: 8px;
       }
       .header-pills > .icon-pill--home,
       .header-pills > .icon-pill--theme,
-      .header-pills > .header-pill { margin: 0; }
+      .header-pills > .header-pill { grid-column: auto; justify-self: auto; margin: 0; }
+      /* Identity badge collapses the same way as on the main site: role drops,
+         avatar + name tighten so the pill keeps the same footprint. */
       .header-pill__role { display: none; }
+      .header-pill__inner { gap: 8px; }
+      .header-pill__label { line-height: 1; }
+      .header-pill__name { font-size: 14px; }
     }
     .entry__when {
       display: none;
@@ -374,7 +396,7 @@
   <div class="header-pills">
     <a class="icon-pill icon-pill--home" href="https://ravivasavan.com" aria-label="Home">
       <span class="icon-pill__icon">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M15 21v-8a1 1 0 0 0-1-1h-4a1 1 0 0 0-1 1v8"/>
           <path d="M3 10a2 2 0 0 1 .709-1.528l7-5.999a2 2 0 0 1 2.582 0l7 5.999A2 2 0 0 1 21 10v9a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>
         </svg>
@@ -393,13 +415,13 @@
     </header>
     <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
       <span class="icon-pill__icon">
-        <svg data-state="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg data-state="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
         </svg>
-        <svg data-state="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg data-state="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
         </svg>
-        <svg data-state="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <svg data-state="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
         </svg>
       </span>
