@@ -87,7 +87,10 @@
       grid-template-columns: minmax(0, 1fr) 360px;
     }
 
-    /* ---- chrome: same pills as the rest of play ---- */
+    /* ---- chrome: two levels, same as magnetic ----
+       Top row is the site's: back to play, the identity pill, the theme
+       switch. Second row is this experiment's own buttons. Both anchor left,
+       over the stage, because the right-hand side is the control panel. */
     .pills {
       position: fixed;
       top: 40px;
@@ -96,7 +99,35 @@
       align-items: center;
       gap: 8px;
     }
+    /* 40px in, one 64px pill down, 8px of air */
+    .pills--tools { top: 112px; }
     .pills--left { left: 40px; }
+
+    .header-pill {
+      background: var(--pill-bg);
+      backdrop-filter: var(--pill-filter);
+      -webkit-backdrop-filter: var(--pill-filter);
+      border-radius: 32px;
+      padding: 8px;
+      box-shadow: inset 0 0 0 1px var(--separator);
+      margin: 0;
+    }
+    .header-pill__inner { display: flex; align-items: center; gap: 12px; }
+    .header-pill__avatar {
+      width: 48px;
+      height: 48px;
+      border-radius: 48px;
+      background: var(--separator);
+      overflow: hidden;
+      flex-shrink: 0;
+    }
+    .header-pill__avatar svg { width: 100%; height: 100%; display: block; }
+    .header-pill__label { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
+    .header-pill__name { font-size: 16px; line-height: 1.3; }
+    .header-pill__role { font-size: 16px; line-height: 1.3; opacity: 0.6; }
+
+    /* A tool pill that's currently on — reveal-codes, mainly. */
+    .icon-pill.is-on { color: var(--orange); }
 
     .icon-pill {
       background: var(--pill-bg);
@@ -180,7 +211,9 @@
       overflow: auto;
       display: grid;
       place-items: center;
-      padding: 120px 40px 48px;
+      /* Clears both chrome rows: the tools row ends at 176px, and on a narrow
+         desktop window the centred page is wide enough to reach the pills. */
+      padding: 192px 40px 48px;
     }
     #screen-wrap { display: grid; gap: 16px; justify-items: center; }
     /* The page never inverts with the theme: teletext is black, full stop.
@@ -272,15 +305,17 @@
       body { grid-template-columns: minmax(0, 1fr); overflow: auto; }
       html, body { height: auto; }
       .pills { top: 16px; }
+      .pills--tools { top: 88px; }
       .pills--left { left: 16px; }
-      #stage { padding: 96px 16px 24px; overflow: visible; }
+      .header-pill__role { display: none; }
+      #stage { padding: 168px 16px 24px; overflow: visible; }
       #panel { border-left: 0; border-top: 1px solid var(--separator); padding: 24px 16px 64px; overflow: visible; }
     }
   </style>
 </head>
 <body>
-  <!-- Both pills live top-left, over the stage: the theme pill used to sit at
-       top-right, where it floated on top of the control panel. -->
+  <!-- Top row, site level: back, identity, theme. All left-anchored over the
+       stage, since the right-hand side is the control panel. -->
   <div class="pills pills--left">
     <a class="icon-pill" href="/" aria-label="Back to play index">
       <span class="icon-pill__icon">
@@ -289,6 +324,17 @@
         </svg>
       </span>
     </a>
+    <header class="header-pill">
+      <div class="header-pill__inner">
+        <div class="header-pill__avatar">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"> <rect width="2.00001" height="2.00001" transform="matrix(-1 0 0 1 32 13)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 20 13)" fill="currentColor"/> <path d="M34.0098 34.9766V48H36V34.9766H34.0098ZM13.9902 34.9766H12V48H13.9902V35.0293H15.9805V32.9814H13.9902V34.9766ZM32 13H16V9H14V17H16V15H32V25H30V27H18V31H16V33H18V35H30V33H32V35H34V33H32V31H34V15H40V13H34V9H32V13ZM12 22H14V17H12V22ZM28 21H30V19H28V21ZM20 21H22V19H20V21ZM30 9H32V7H30V9ZM16 9H18V7H16V9ZM18 7H30V5H18V7Z" fill="currentColor"/> <rect width="4" height="6" transform="matrix(-1 0 0 1 18 27)" fill="currentColor"/> <rect width="2.00001" height="4.00001" transform="matrix(-1 0 0 1 16 21)" fill="currentColor"/> <path d="M16 25H18V21H16V25Z" fill="currentColor"/> <rect width="16.0001" height="2.00001" transform="matrix(-1 0 0 1 30 25)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 32 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 24 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 28 21)" fill="currentColor"/> </svg>
+        </div>
+        <div class="header-pill__label">
+          <span class="header-pill__name">Ravi Vasavan</span>
+          <span class="header-pill__role">Teletext</span>
+        </div>
+      </div>
+    </header>
     <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
       <span class="icon-pill__icon">
         <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -303,6 +349,26 @@
       </span>
     </button>
   </div>
+
+  <!-- Second row: teletext's own buttons. These two used to be a button and a
+       checkbox in the panel; the panel keeps the settings, the row takes the
+       actions, and neither is duplicated. -->
+  <nav class="pills pills--left pills--tools" aria-label="Teletext controls">
+    <button class="icon-pill" id="p-random" type="button" aria-label="Randomise the page">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/>
+        </svg>
+      </span>
+    </button>
+    <button class="icon-pill" id="p-reveal" type="button" aria-label="Reveal the control codes" aria-pressed="false">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/>
+        </svg>
+      </span>
+    </button>
+  </nav>
 
   <main id="stage">
     <div id="screen-wrap">
@@ -365,10 +431,9 @@
         <label class="check"><input id="c-separated" type="checkbox"> Separated mosaics</label>
         <label class="check"><input id="c-hold" type="checkbox" checked> Hold mosaic</label>
         <label class="check"><input id="c-flash" type="checkbox"> Flash the strap</label>
-        <label class="check"><input id="c-reveal" type="checkbox"> Reveal codes</label>
       </div>
       <p class="hint">Every attribute is <em>spacing</em> — it occupies a cell of
-        its own. Reveal codes to see what the layout is paying.</p>
+        its own. The eye, top left, reveals what the layout is paying.</p>
     </div>
 
     <div class="group">
@@ -406,7 +471,8 @@
           </select>
         </label>
       </div>
-      <button class="action" id="c-random" type="button">Randomise</button>
+      <p class="hint">The shuffle pill, top left, draws a whole new page — seed,
+        layout, palette and copy together.</p>
     </div>
 
     <div class="group">
@@ -1255,7 +1321,9 @@
     el('c-separated').checked = state.separated;
     el('c-hold').checked = state.hold;
     el('c-flash').checked = state.flash;
-    el('c-reveal').checked = state.reveal;
+    // Reveal-codes is a pill in the tools row rather than a checkbox now.
+    el('p-reveal').classList.toggle('is-on', state.reveal);
+    el('p-reveal').setAttribute('aria-pressed', String(state.reveal));
     paintSwatches();
   }
 
@@ -1310,12 +1378,24 @@
   bind('c-dither', 'dither', t => t.value);
   bind('c-changes', 'changes', t => +t.value || 6);
   for (const [id, key] of [['c-double', 'double'], ['c-separated', 'separated'],
-                           ['c-hold', 'hold'], ['c-flash', 'flash'], ['c-reveal', 'reveal']]) {
+                           ['c-hold', 'hold'], ['c-flash', 'flash']]) {
     el(id).addEventListener('change', e => { state[key] = e.target.checked; build(); });
   }
 
+  // Reveal-codes lives in the tools row: it acts on the page rather than
+  // describing it, which is the line between the row and the panel.
+  el('p-reveal').addEventListener('click', () => {
+    stopCycle();
+    state.reveal = !state.reveal;
+    el('p-reveal').classList.toggle('is-on', state.reveal);
+    el('p-reveal').setAttribute('aria-pressed', String(state.reveal));
+    paint();
+  });
+
   // Randomise draws a whole page: seed, layout, scheme and copy together.
-  el('c-random').addEventListener('click', () => {
+  el('p-random').addEventListener('click', () => {
+    stopCycle();
+    state.testCard = false;
     state.seed = Math.random().toString(36).slice(2, 8);
     const rand = seeded(state.seed);
     const pick = SEEDS[Math.floor(rand() * SEEDS.length)];

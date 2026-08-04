@@ -79,9 +79,12 @@
         --separator: color-mix(in srgb, var(--white) 8%, transparent);
       }
     }
-    /* Experiment pages keep their own chrome layout: identity + back pill
-       top-left, action pills top-right. (The sites' pages — main + play
-       index — share the centred 3-track layout instead.) */
+    /* Chrome runs on two levels. The top row is the site's own — back to play,
+       the identity pill, the theme switch — and it reads the same on every
+       experiment. The row beneath belongs to this experiment alone, so its
+       buttons never share a band with the navigation and it's obvious which
+       level a control answers to. (The sites' pages — main + play index —
+       share the centred 3-track layout instead.) */
     .pills {
       position: fixed;
       top: 40px;
@@ -90,6 +93,8 @@
       align-items: center;
       gap: 8px;
     }
+    /* 40px in, one 64px pill down, 8px of air */
+    .pills--tools { top: 112px; }
     .pills--left { left: 40px; }
     .pills--right { right: 40px; }
 
@@ -204,6 +209,7 @@
 
     @media (max-width: 640px) {
       .pills { top: 12px; }
+      .pills--tools { top: 84px; }
       .pills--left { left: 12px; }
       .pills--right { right: 12px; }
       .header-pill__role { display: none; }
@@ -314,7 +320,26 @@
     </header>
   </div>
 
-  <nav class="pills pills--right">
+  <!-- Top row, site level: the theme switch belongs to the family, not to this
+       experiment, so it sits up here with back and identity. -->
+  <div class="pills pills--right">
+    <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
+      <span class="icon-pill__icon">
+        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
+        </svg>
+        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
+        </svg>
+        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
+        </svg>
+      </span>
+    </button>
+  </div>
+
+  <!-- Second row: magnetic's own buttons. -->
+  <nav class="pills pills--right pills--tools" aria-label="Magnetic controls">
     <button class="icon-pill" id="btn-upload" type="button" aria-label="Upload image">
       <span class="icon-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -343,19 +368,6 @@
       <span class="icon-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M2 18h1.4c1.3 0 2.5-.6 3.3-1.7l6.1-8.6c.7-1.1 2-1.7 3.3-1.7H22"/><path d="m18 2 4 4-4 4"/><path d="M2 6h1.9c1.5 0 2.9.9 3.6 2.2"/><path d="M22 18h-5.9c-1.3 0-2.6-.7-3.3-1.8l-.5-.8"/><path d="m18 14 4 4-4 4"/>
-        </svg>
-      </span>
-    </button>
-    <button class="icon-pill icon-pill--theme" type="button" aria-label="Toggle theme" data-theme-toggle>
-      <span class="icon-pill__icon">
-        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/>
-        </svg>
-        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/>
-        </svg>
-        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
         </svg>
       </span>
     </button>
