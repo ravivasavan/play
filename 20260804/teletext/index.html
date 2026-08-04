@@ -129,15 +129,18 @@
       pointer-events: none;
     }
 
-    /* This experiment's own row sits left, over the stage: its right-hand side
-       is the control panel. */
+    /* This experiment's row sits at the right of the stage, like magnetic's —
+       but it stops at the panel's edge rather than the viewport's, because
+       below the rule the right-hand side belongs to the panel. */
     .tools {
       position: fixed;
       top: var(--chrome-tools);
       left: var(--chrome-pad);
+      right: calc(var(--panel-w) + var(--chrome-pad));
       z-index: 500;
       display: flex;
       align-items: center;
+      justify-content: flex-end;
       gap: 8px;
     }
 
@@ -397,6 +400,9 @@
       .tools {
         left: 0;
         right: 0;
+        /* Folded there's no panel beside it, and a scroller has to start at its
+           left edge or the first pill can't be reached. */
+        justify-content: flex-start;
         padding: 0 var(--chrome-pad);
         overflow-x: auto;
         overscroll-behavior-x: contain;
