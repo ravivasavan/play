@@ -43,6 +43,20 @@
         "calendar.png",
         "rhythm.png"
       ]
+    },
+    {
+      "slug": "teletext",
+      "name": "Teletext",
+      "date": "20260804",
+      "description": "A layout generator on a real 40 × 25 teletext page",
+      "status": "tinkering",
+      "tech": "vanilla JS, WST Level 1, Bedstead",
+      "glyph": "tv",
+      "shots": [
+        "headline.png",
+        "codes.png",
+        "mosaics.png"
+      ]
     }
   ]
 }
