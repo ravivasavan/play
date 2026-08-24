@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="400" viewBox="0 0 600 400">
+  <!-- simple mark: a mountain + crescent moon to exercise the SVG mask path -->
+  <mask id="crescent">
+    <rect width="600" height="400" fill="#fff"/>
+    <circle cx="455" cy="95" r="52" fill="#000"/>
+  </mask>
+  <circle cx="430" cy="110" r="60" fill="#000" mask="url(#crescent)"/>
+  <path d="M60 340 L220 90 L300 220 L360 140 L540 340 Z" fill="#000"/>
+  <rect x="40" y="336" width="520" height="14" fill="#000"/>
+</svg>

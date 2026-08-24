@@ -57,6 +57,20 @@
         "codes.png",
         "mosaics.png"
       ]
+    },
+    {
+      "slug": "metal",
+      "name": "Metal",
+      "date": "20260824",
+      "description": "A black metal logo generator you breed, not tune",
+      "status": "tinkering",
+      "tech": "React, DialKit, opentype.js, Clipper",
+      "glyph": "flame",
+      "shots": [
+        "grid.png",
+        "single.png",
+        "day.png"
+      ]
     }
   ]
 }
