@@ -6,11 +6,20 @@
   <title>magnetic — play</title>
   <meta name="description" content="Scattered windows that magnetise into a face when you click.">
   <script>
-    /* Set data-theme before paint to avoid FOUC. Cycles: day → night → system. */
+    /* Set data-theme before paint to avoid FOUC. Cycles: day → night → system
+       → circadian. Circadian colours are computed by circadian.js (deferred),
+       so re-apply its last cached tokens here to keep first paint correct. */
     (function () {
       var t = null;
       try { t = localStorage.getItem('theme'); } catch (e) {}
-      document.documentElement.dataset.theme = (t === 'day' || t === 'night' || t === 'system') ? t : 'system';
+      if (t !== 'day' && t !== 'night' && t !== 'system' && t !== 'circadian') t = 'system';
+      document.documentElement.dataset.theme = t;
+      if (t === 'circadian') {
+        try {
+          var cache = JSON.parse(localStorage.getItem('circadian-cache'));
+          for (var k in cache) document.documentElement.style.setProperty(k, cache[k]);
+        } catch (e) {}
+      }
     })();
   </script>
   <style>
@@ -256,21 +265,24 @@
 
     /* theme pill — glyph matching [data-theme] fades in, hover previews next */
     .icon-pill--theme .icon-pill__icon svg { opacity: 0; transform: rotate(-90deg) scale(0.85); }
-    [data-theme="day"]    .icon-pill--theme svg[data-tstate="day"],
-    [data-theme="night"]  .icon-pill--theme svg[data-tstate="night"],
-    [data-theme="system"] .icon-pill--theme svg[data-tstate="system"] {
+    [data-theme="day"]       .icon-pill--theme svg[data-tstate="day"],
+    [data-theme="night"]     .icon-pill--theme svg[data-tstate="night"],
+    [data-theme="system"]    .icon-pill--theme svg[data-tstate="system"],
+    [data-theme="circadian"] .icon-pill--theme svg[data-tstate="circadian"] {
       opacity: 1;
       transform: rotate(0deg) scale(1);
     }
-    [data-theme="day"]    .icon-pill--theme:hover svg[data-tstate="day"],
-    [data-theme="night"]  .icon-pill--theme:hover svg[data-tstate="night"],
-    [data-theme="system"] .icon-pill--theme:hover svg[data-tstate="system"] {
+    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="day"],
+    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="circadian"] {
       opacity: 0;
       transform: rotate(90deg) scale(0.85);
     }
-    [data-theme="day"]    .icon-pill--theme:hover svg[data-tstate="night"],
-    [data-theme="night"]  .icon-pill--theme:hover svg[data-tstate="system"],
-    [data-theme="system"] .icon-pill--theme:hover svg[data-tstate="day"] {
+    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="circadian"],
+    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="day"] {
       opacity: 1;
       transform: rotate(0deg) scale(1);
     }
@@ -416,6 +428,9 @@
         </svg>
         <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/>
+        </svg>
+        <svg data-tstate="circadian" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>
         </svg>
       </span>
     </button>
@@ -913,7 +928,7 @@
 
   // ---------- theme pill (ported from ravivasavan.com) ----------
   const themeBtn = document.querySelector('[data-theme-toggle]');
-  const CYCLE = ['day', 'night', 'system'];
+  const CYCLE = ['day', 'night', 'system', 'circadian'];
   themeBtn.addEventListener('click', () => {
     const html = document.documentElement;
     const next = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
@@ -953,5 +968,6 @@
   requestAnimationFrame(render);
 })();
 </script>
+  <script src="/assets/circadian.js" defer></script>
 </body>
 </html>
