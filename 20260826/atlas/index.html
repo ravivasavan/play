@@ -1,0 +1,714 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>atlas — play</title>
+  <meta name="description" content="Every country you've been to, filled in on an Equal Earth map. Kept in this browser.">
+  <script>
+    /* Set data-theme before paint to avoid FOUC. Cycles: day → night → system
+       → circadian. Circadian colours are computed by circadian.js (deferred),
+       so re-apply its last cached tokens here to keep first paint correct. */
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('theme'); } catch (e) {}
+      if (t !== 'day' && t !== 'night' && t !== 'system' && t !== 'circadian') t = 'system';
+      document.documentElement.dataset.theme = t;
+      if (t === 'circadian') {
+        try {
+          var cache = JSON.parse(localStorage.getItem('circadian-cache'));
+          for (var k in cache) document.documentElement.style.setProperty(k, cache[k]);
+        } catch (e) {}
+      }
+    })();
+  </script>
+  <style>
+    @font-face {
+      font-family: "Labil Grotesk";
+      src: url("/assets/fonts/LabilGrotesk-Regular.woff2") format("woff2"),
+           url("/assets/fonts/LabilGrotesk-Regular.woff") format("woff");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    :root {
+      /* Brand colours — inherited from ravivasavan.com */
+      --night: #0d1b1e;
+      --orange: #ff795c;
+      --white: #fff5f5;
+
+      --bg: var(--white);
+      --ink: var(--night);
+      --muted: color-mix(in srgb, var(--night) 55%, var(--white));
+      --field: color-mix(in srgb, var(--night) 4%, transparent);
+      --pill-bg: rgba(255, 245, 245, 0.2);
+      --pill-filter: blur(10px) saturate(180%);
+      --separator: color-mix(in srgb, var(--night) 5%, transparent);
+
+      /* Map inks. Land is a quiet tint of the ink; visited is the brand orange;
+         everything else is a hairline. */
+      --land: color-mix(in srgb, var(--ink) 7%, var(--bg));
+      --land-line: color-mix(in srgb, var(--ink) 22%, transparent);
+      --land-hover: color-mix(in srgb, var(--ink) 16%, var(--bg));
+      --visited: var(--orange);
+      --visited-hover: color-mix(in srgb, var(--orange) 80%, var(--ink));
+      --sea-line: color-mix(in srgb, var(--ink) 14%, transparent);
+      --grat: color-mix(in srgb, var(--ink) 4%, transparent);
+    }
+    [data-theme="night"] {
+      --bg: var(--night);
+      --ink: var(--white);
+      --muted: color-mix(in srgb, var(--white) 55%, var(--night));
+      --field: color-mix(in srgb, var(--white) 6%, transparent);
+      --pill-bg: rgba(13, 27, 30, 0.5);
+      --separator: color-mix(in srgb, var(--white) 8%, transparent);
+      --land: color-mix(in srgb, var(--ink) 10%, var(--bg));
+      --land-line: color-mix(in srgb, var(--ink) 26%, transparent);
+      --land-hover: color-mix(in srgb, var(--ink) 20%, var(--bg));
+    }
+    @media (prefers-color-scheme: dark) {
+      [data-theme="system"] {
+        --bg: var(--night);
+        --ink: var(--white);
+        --muted: color-mix(in srgb, var(--white) 55%, var(--night));
+        --field: color-mix(in srgb, var(--white) 6%, transparent);
+        --pill-bg: rgba(13, 27, 30, 0.5);
+        --separator: color-mix(in srgb, var(--white) 8%, transparent);
+        --land: color-mix(in srgb, var(--ink) 10%, var(--bg));
+        --land-line: color-mix(in srgb, var(--ink) 26%, transparent);
+        --land-hover: color-mix(in srgb, var(--ink) 20%, var(--bg));
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+    html, body { height: 100%; overflow: hidden; }
+    html { scrollbar-gutter: stable; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Labil Grotesk", system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.3;
+      transition: background-color 240ms ease, color 240ms ease;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--panel-w);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- chrome: two levels, same as the family ---- */
+    :root {
+      --chrome-top: 40px;
+      --chrome-rule: 120px;
+      --chrome-tools: 136px;
+      --chrome-pad: 40px;
+      --panel-w: 360px;
+    }
+    .chrome {
+      position: fixed; top: var(--chrome-top); left: 0; right: 0; z-index: 500;
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+      padding: 0 var(--chrome-pad); pointer-events: none;
+    }
+    .chrome > * { pointer-events: auto; }
+    .chrome__back  { justify-self: start; }
+    .chrome__id    { justify-self: center; }
+    .chrome__theme { justify-self: end; }
+    .chrome-rule {
+      position: fixed; top: var(--chrome-rule); left: 0; right: 0;
+      border-top: 1px solid var(--separator); z-index: 499; pointer-events: none;
+    }
+    .tools {
+      position: fixed; top: var(--chrome-tools); left: var(--chrome-pad);
+      right: calc(var(--panel-w) + var(--chrome-pad)); z-index: 500;
+      display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+    }
+    .tool-pill {
+      display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 12px;
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); border-radius: 22px;
+      background: transparent; color: var(--ink); font: inherit; font-size: 14px; line-height: 1;
+      cursor: pointer; transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+    .tool-pill:hover, .tool-pill:focus-visible {
+      background: var(--separator); border-color: color-mix(in srgb, var(--ink) 28%, transparent);
+    }
+    .tool-pill:active { transform: scale(0.96); }
+    .tool-pill__icon { display: grid; place-items: center; width: 16px; height: 16px; flex-shrink: 0; }
+    .tool-pill__icon svg { width: 16px; height: 16px; }
+    .tool-pill--danger:hover { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, transparent); }
+
+    .header-pill {
+      background: var(--pill-bg); backdrop-filter: var(--pill-filter); -webkit-backdrop-filter: var(--pill-filter);
+      border-radius: 32px; padding: 8px; box-shadow: inset 0 0 0 1px var(--separator); margin: 0;
+    }
+    .header-pill__inner { display: flex; align-items: center; gap: 12px; }
+    .header-pill__avatar { width: 48px; height: 48px; border-radius: 48px; background: var(--separator); overflow: hidden; flex-shrink: 0; }
+    .header-pill__avatar svg { width: 100%; height: 100%; display: block; }
+    .header-pill__label { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
+    .header-pill__name { font-size: 16px; line-height: 1.3; }
+    .header-pill__role { font-size: 16px; line-height: 1.3; opacity: 0.6; }
+
+    .icon-pill {
+      background: var(--pill-bg); backdrop-filter: var(--pill-filter); -webkit-backdrop-filter: var(--pill-filter);
+      border: 0; border-radius: 32px; padding: 8px; cursor: pointer; color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--separator); display: inline-flex; font: inherit;
+      position: relative; overflow: hidden; text-decoration: none;
+    }
+    .icon-pill::before {
+      content: ''; position: absolute; top: 8px; left: 8px; width: 48px; height: 48px;
+      background: var(--separator); border-radius: 48px; z-index: 0;
+      transition: top 240ms cubic-bezier(0.4,0,0.2,1), left 240ms cubic-bezier(0.4,0,0.2,1),
+                  width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1),
+                  border-radius 240ms cubic-bezier(0.4,0,0.2,1);
+    }
+    .icon-pill:hover::before, .icon-pill:focus-visible::before { top: 3.2px; left: 3.2px; width: 57.6px; height: 57.6px; border-radius: 38.4px; }
+    .icon-pill__icon { width: 48px; height: 48px; border-radius: 48px; display: grid; place-items: center; flex-shrink: 0; position: relative; z-index: 1; }
+    .icon-pill__icon svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity 240ms ease-out, transform 240ms cubic-bezier(0.4,0,0.2,1); }
+    .icon-pill--theme .icon-pill__icon svg { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+    [data-theme="day"]       .icon-pill--theme svg[data-tstate="day"],
+    [data-theme="night"]     .icon-pill--theme svg[data-tstate="night"],
+    [data-theme="system"]    .icon-pill--theme svg[data-tstate="system"],
+    [data-theme="circadian"] .icon-pill--theme svg[data-tstate="circadian"] { opacity: 1; transform: rotate(0deg) scale(1); }
+    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="day"],
+    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="circadian"] { opacity: 0; transform: rotate(90deg) scale(0.85); }
+    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="circadian"],
+    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="day"] { opacity: 1; transform: rotate(0deg) scale(1); }
+
+    /* ---- the map ---- */
+    #stage { position: relative; overflow: hidden; touch-action: none; cursor: grab; }
+    #stage.dragging { cursor: grabbing; }
+    #stage.over { cursor: pointer; }
+    #map { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #tip {
+      position: absolute; z-index: 10; pointer-events: none; transform: translate(12px, 16px);
+      padding: 6px 10px; border-radius: 10px; font-size: 13px; line-height: 1.2; white-space: nowrap;
+      background: var(--ink); color: var(--bg); opacity: 0; transition: opacity 120ms ease;
+    }
+    #tip.on { opacity: 1; }
+    #tip small { opacity: 0.6; }
+    #tip .tick { color: var(--orange); }
+
+    /* ---- the panel ---- */
+    #panel {
+      position: relative; overflow: auto; padding: 204px 32px 48px 32px;
+      display: flex; flex-direction: column; gap: 28px;
+      scrollbar-width: thin;
+    }
+    /* Divider starts at the rule, like teletext's, so the band above runs unbroken. */
+    #panel::before { content: ''; position: fixed; top: var(--chrome-rule); bottom: 0; right: calc(var(--panel-w)); border-left: 1px solid var(--separator); pointer-events: none; }
+
+    .count { display: flex; flex-direction: column; gap: 10px; }
+    .count__big { font-size: 96px; line-height: 0.95; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .count__big small { font-size: 28px; letter-spacing: -0.01em; color: var(--muted); margin-left: 6px; }
+    .count__rail { height: 3px; border-radius: 3px; background: var(--separator); overflow: hidden; }
+    .count__rail i { display: block; height: 100%; width: 0; background: var(--orange); border-radius: 3px; transition: width 400ms cubic-bezier(0.2, 0, 0, 1); }
+    .count__line { font-size: 14px; color: var(--muted); display: flex; justify-content: space-between; font-variant-numeric: tabular-nums; }
+
+    .search { position: relative; }
+    .search input {
+      width: 100%; height: 44px; padding: 0 40px 0 40px; border-radius: 22px;
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); background: transparent;
+      color: var(--ink); font: inherit; font-size: 15px; outline: none;
+      transition: border-color 200ms ease, background-color 200ms ease;
+    }
+    .search input::placeholder { color: var(--muted); }
+    .search input:focus { border-color: color-mix(in srgb, var(--ink) 40%, transparent); background: var(--field); }
+    .search__icon { position: absolute; left: 14px; top: 14px; width: 16px; height: 16px; color: var(--muted); pointer-events: none; }
+    .search kbd { position: absolute; right: 12px; top: 12px; font: inherit; font-size: 11px; line-height: 18px; padding: 0 6px; border-radius: 6px; border: 1px solid var(--separator); color: var(--muted); }
+    .search__list {
+      position: absolute; left: 0; right: 0; top: 50px; z-index: 20; margin: 0; padding: 6px; list-style: none;
+      border-radius: 16px; background: var(--bg); box-shadow: inset 0 0 0 1px var(--separator), 0 12px 32px rgba(0,0,0,0.12);
+      max-height: 320px; overflow: auto; display: none;
+    }
+    .search__list.on { display: block; }
+    .search__list li {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 9px 12px; border-radius: 10px; cursor: pointer; font-size: 14px;
+    }
+    .search__list li small { color: var(--muted); font-size: 12px; }
+    .search__list li.sel, .search__list li:hover { background: var(--field); }
+    .search__list li.is-visited::after { content: ''; width: 8px; height: 8px; border-radius: 8px; background: var(--orange); flex-shrink: 0; }
+    .search__empty { padding: 9px 12px; font-size: 14px; color: var(--muted); }
+
+    .visited h2 { font-size: 12px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 10px; }
+    .visited__group { margin-bottom: 18px; }
+    .visited__group:last-child { margin-bottom: 0; }
+    .visited ul { list-style: none; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+    .visited li button {
+      display: inline-flex; align-items: center; gap: 6px; height: 30px; padding: 0 6px 0 11px; border-radius: 15px;
+      border: 1px solid color-mix(in srgb, var(--ink) 12%, transparent); background: transparent; color: var(--ink);
+      font: inherit; font-size: 13px; cursor: pointer; transition: border-color 160ms ease, background-color 160ms ease;
+    }
+    .visited li button:hover { background: var(--field); border-color: color-mix(in srgb, var(--ink) 28%, transparent); }
+    .visited li button svg { width: 12px; height: 12px; opacity: 0.5; }
+    .visited li button:hover svg { opacity: 1; }
+    .visited li button.t { color: var(--muted); }
+    .visited .empty { font-size: 14px; color: var(--muted); }
+
+    .about { font-size: 13px; line-height: 1.45; color: var(--muted); border-top: 1px solid var(--separator); padding-top: 20px; margin-top: auto; }
+    .about p + p { margin-top: 8px; }
+    .about a { color: inherit; }
+
+    /* Fold: map on top, panel under it, chrome tightens like the family does */
+    @media (max-width: 900px) {
+      body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 70vh auto; overflow: auto; }
+      html, body { height: auto; }
+      :root { --chrome-top: 16px; --chrome-rule: 96px; --chrome-tools: 112px; --chrome-pad: 16px; }
+      .header-pill__role { display: none; }
+      .tools {
+        left: 0; right: 0; justify-content: flex-start; padding: 0 var(--chrome-pad);
+        overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+        touch-action: pan-x; scrollbar-width: none; cursor: grab;
+      }
+      .tools::-webkit-scrollbar { display: none; }
+      .tools.dragging { cursor: grabbing; }
+      .tool-pill { flex: 0 0 auto; }
+      #stage { height: 70vh; }
+      #panel { padding: 24px 16px 64px; overflow: visible; border-top: 1px solid var(--separator); }
+      #panel::before { display: none; }
+      .count__big { font-size: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="chrome">
+    <a class="icon-pill chrome__back" href="/" aria-label="Back to play index">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </span>
+    </a>
+    <header class="header-pill chrome__id">
+      <div class="header-pill__inner">
+        <div class="header-pill__avatar">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"> <rect width="2.00001" height="2.00001" transform="matrix(-1 0 0 1 32 13)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 20 13)" fill="currentColor"/> <path d="M34.0098 34.9766V48H36V34.9766H34.0098ZM13.9902 34.9766H12V48H13.9902V35.0293H15.9805V32.9814H13.9902V34.9766ZM32 13H16V9H14V17H16V15H32V25H30V27H18V31H16V33H18V35H30V33H32V35H34V33H32V31H34V15H40V13H34V9H32V13ZM12 22H14V17H12V22ZM28 21H30V19H28V21ZM20 21H22V19H20V21ZM30 9H32V7H30V9ZM16 9H18V7H16V9ZM18 7H30V5H18V7Z" fill="currentColor"/> <rect width="4" height="6" transform="matrix(-1 0 0 1 18 27)" fill="currentColor"/> <rect width="2.00001" height="4.00001" transform="matrix(-1 0 0 1 16 21)" fill="currentColor"/> <path d="M16 25H18V21H16V25Z" fill="currentColor"/> <rect width="16.0001" height="2.00001" transform="matrix(-1 0 0 1 30 25)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 32 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 24 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 28 21)" fill="currentColor"/> </svg>
+        </div>
+        <div class="header-pill__label">
+          <span class="header-pill__name">Ravi Vasavan</span>
+          <span class="header-pill__role">Atlas</span>
+        </div>
+      </div>
+    </header>
+    <button class="icon-pill icon-pill--theme chrome__theme" type="button" aria-label="Toggle theme" data-theme-toggle>
+      <span class="icon-pill__icon">
+        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        <svg data-tstate="circadian" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </span>
+    </button>
+  </div>
+  <div class="chrome-rule" aria-hidden="true"></div>
+
+  <nav class="tools" aria-label="Atlas controls">
+    <button class="tool-pill" id="t-in" type="button" aria-label="Zoom in">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></svg></span>
+      <span class="tool-pill__label">In</span>
+    </button>
+    <button class="tool-pill" id="t-out" type="button" aria-label="Zoom out">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M8 11h6"/></svg></span>
+      <span class="tool-pill__label">Out</span>
+    </button>
+    <button class="tool-pill" id="t-world" type="button" aria-label="Back to the whole world">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span>
+      <span class="tool-pill__label">World</span>
+    </button>
+    <button class="tool-pill" id="t-export" type="button" aria-label="Download the list as JSON">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span>
+      <span class="tool-pill__label">Export</span>
+    </button>
+    <button class="tool-pill" id="t-import" type="button" aria-label="Load a list from JSON">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
+      <span class="tool-pill__label">Import</span>
+    </button>
+    <button class="tool-pill tool-pill--danger" id="t-clear" type="button" aria-label="Clear the map">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></span>
+      <span class="tool-pill__label">Clear</span>
+    </button>
+    <input type="file" id="file" accept="application/json,.json" hidden>
+  </nav>
+
+  <main id="stage" aria-label="World map">
+    <canvas id="map"></canvas>
+    <div id="tip" role="status"></div>
+  </main>
+
+  <aside id="panel" aria-label="Your countries">
+    <section class="count" aria-live="polite">
+      <div class="count__big"><span id="n">0</span><small>of 195</small></div>
+      <div class="count__rail"><i id="rail"></i></div>
+      <div class="count__line"><span id="togo">195 to go</span><span id="terr"></span></div>
+    </section>
+
+    <section class="search">
+      <svg class="search__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+      <input id="q" type="text" placeholder="Add a country" autocomplete="off" spellcheck="false" aria-label="Search for a country" aria-autocomplete="list" aria-controls="list">
+      <kbd>/</kbd>
+      <ul class="search__list" id="list" role="listbox"></ul>
+    </section>
+
+    <section class="visited" id="visited"></section>
+
+    <section class="about">
+      <p>Click a country to fill it in; click again to clear it. Scroll to zoom, drag to pan. <kbd>+</kbd> <kbd>−</kbd> <kbd>0</kbd> and the arrows work too.</p>
+      <p>195 is the 193 UN member states plus the two observers, the Holy See and Palestine. Territories — Greenland, Puerto Rico, Hong Kong, Taiwan — can be filled in but are counted on their own line.</p>
+      <p>Equal Earth projection: a country's size on screen is proportional to its size on Earth. Borders are Natural Earth 1:50m, public domain. Your list lives in this browser only — export it to keep it.</p>
+    </section>
+  </aside>
+
+<script src="world.js"></script>
+<script>
+(() => {
+  'use strict';
+  const W = window.WORLD;
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), canvas = $('map'), tip = $('tip');
+  const ctx = canvas.getContext('2d');
+  const hit = document.createElement('canvas');
+  const hctx = hit.getContext('2d', { willReadFrequently: true });
+
+  // ---------- data ----------
+  const byCode = new Map(W.countries.map(c => [c.c, c]));
+  // Rings arrive as delta-encoded hundredths of a unit; unpack straight into Path2Ds.
+  W.countries.forEach((c, i) => { c.i = i; c.paths = c.g.map(d => { const p = new Path2D(); let x = d[0], y = d[1]; p.moveTo(x / 100, y / 100); for (let k = 2; k < d.length; k += 2) { x += d[k]; y += d[k + 1]; p.lineTo(x / 100, y / 100); } p.closePath(); return p; }); });
+  const counted = W.countries.filter(c => c.k !== 't');
+  const sphere = new Path2D(); W.sphere.forEach(([x, y], i) => i ? sphere.lineTo(x, y) : sphere.moveTo(x, y)); sphere.closePath();
+  const grat = new Path2D(); W.grat.forEach(line => line.forEach(([x, y], i) => i ? grat.lineTo(x, y) : grat.moveTo(x, y)));
+
+  // ---------- state ----------
+  const KEY = 'atlas.state';
+  const visited = new Set();
+  (function load() {
+    try {
+      const s = JSON.parse(localStorage.getItem(KEY));
+      if (s && Array.isArray(s.visited)) for (const c of s.visited) if (byCode.has(c)) visited.add(c);
+    } catch (e) {}
+  })();
+  let save = function () {
+    try { localStorage.setItem(KEY, JSON.stringify({ version: 1, visited: [...visited].sort() })); } catch (e) {}
+  };
+  function toggle(code) {
+    if (visited.has(code)) visited.delete(code); else visited.add(code);
+    save(); renderPanel(); draw();
+  }
+
+  // ---------- view ----------
+  // Screen = world · k · s0 + t. s0 fits the whole world in the stage; k is the zoom.
+  const view = { k: 1, tx: 0, ty: 0 };
+  let cw = 0, ch = 0, dpr = 1, s0 = 1, hover = null;
+  const PAD = 24;
+  const KMIN = 1, KMAX = 12;
+
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    cw = r.width; ch = r.height; dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = hit.width = Math.round(cw * dpr); canvas.height = hit.height = Math.round(ch * dpr);
+    // Leave headroom for the chrome rows on desktop: the world sits below them.
+    const top = matchMedia('(max-width: 900px)').matches ? 180 : 200;
+    s0 = Math.min((cw - PAD * 2) / W.w, (ch - top - PAD) / W.h);
+    const s = s0 * view.k;
+    if (view.k === 1) { view.tx = (cw - W.w * s) / 2; view.ty = top + (ch - top - W.h * s) / 2; }
+    clamp(); draw();
+  }
+  const scale = () => s0 * view.k;
+  function clamp() {
+    view.k = Math.min(KMAX, Math.max(KMIN, view.k));
+    const s = scale(), ww = W.w * s, hh = W.h * s;
+    // Never let the world leave the stage entirely.
+    view.tx = Math.min(cw - 80, Math.max(80 - ww, view.tx));
+    view.ty = Math.min(ch - 80, Math.max(80 - hh, view.ty));
+  }
+  function zoomAt(factor, px, py) {
+    const k0 = view.k, k1 = Math.min(KMAX, Math.max(KMIN, k0 * factor));
+    if (k1 === k0) return;
+    const r = k1 / k0;
+    view.tx = px - (px - view.tx) * r; view.ty = py - (py - view.ty) * r; view.k = k1;
+    clamp(); draw();
+  }
+  function world() { view.k = 1; fit(); }
+  function zoomTo(c) {
+    const [x0, y0, x1, y1] = c.b;
+    const bw = Math.max(x1 - x0, 1), bh = Math.max(y1 - y0, 1);
+    const k = Math.min(KMAX, Math.max(KMIN, Math.min((cw * 0.5) / (bw * s0), (ch * 0.5) / (bh * s0))));
+    animate(k, (x0 + x1) / 2, (y0 + y1) / 2);
+  }
+  let anim = 0;
+  function animate(k1, wx, wy) {
+    cancelAnimationFrame(anim);
+    const k0 = view.k, tx0 = view.tx, ty0 = view.ty, t0 = performance.now(), D = 520;
+    const tx1 = cw / 2 - wx * s0 * k1, ty1 = ch / 2 - wy * s0 * k1;
+    const ease = t => 1 - Math.pow(1 - t, 3);
+    const step = now => {
+      const t = ease(Math.min(1, (now - t0) / D));
+      view.k = k0 + (k1 - k0) * t; view.tx = tx0 + (tx1 - tx0) * t; view.ty = ty0 + (ty1 - ty0) * t;
+      draw();
+      if (t < 1) anim = requestAnimationFrame(step);
+    };
+    anim = requestAnimationFrame(step);
+  }
+
+  // ---------- drawing ----------
+  const css = () => getComputedStyle(document.documentElement);
+  const DOT = 3.5;
+  function tiny(c, s) { return c.c !== 'ATA' && Math.max(c.b[2] - c.b[0], c.b[3] - c.b[1]) * s < 7; }
+
+  function draw() {
+    const s = scale(), v = css();
+    const land = v.getPropertyValue('--land').trim(), line = v.getPropertyValue('--land-line').trim();
+    const vis = v.getPropertyValue('--visited').trim(), hov = v.getPropertyValue('--land-hover').trim(), vhov = v.getPropertyValue('--visited-hover').trim();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    ctx.save();
+    ctx.translate(view.tx, view.ty); ctx.scale(s, s);
+    ctx.lineJoin = 'round';
+    // Graticule and horizon.
+    ctx.strokeStyle = v.getPropertyValue('--grat').trim(); ctx.lineWidth = 1 / s; ctx.stroke(grat);
+    ctx.strokeStyle = v.getPropertyValue('--sea-line').trim(); ctx.lineWidth = 1 / s; ctx.stroke(sphere);
+    // Land.
+    const dots = [];
+    for (const c of W.countries) {
+      if (tiny(c, s)) { dots.push(c); continue; }
+      const on = visited.has(c.c), h = hover === c;
+      ctx.fillStyle = on ? (h ? vhov : vis) : (h ? hov : land);
+      for (const p of c.paths) ctx.fill(p);
+    }
+    ctx.strokeStyle = line; ctx.lineWidth = 0.7 / s;
+    for (const c of W.countries) if (!tiny(c, s)) for (const p of c.paths) ctx.stroke(p);
+    ctx.restore();
+    // Dots draw in screen space so they stay the same size at every zoom.
+    for (const c of dots) {
+      const [x, y] = c.l, sx = x * s + view.tx, sy = y * s + view.ty;
+      const on = visited.has(c.c), h = hover === c;
+      ctx.beginPath(); ctx.arc(sx, sy, DOT + (h ? 1 : 0), 0, Math.PI * 2);
+      if (on) { ctx.fillStyle = h ? vhov : vis; ctx.fill(); }
+      else { ctx.fillStyle = h ? hov : v.getPropertyValue('--bg').trim(); ctx.fill(); ctx.strokeStyle = line; ctx.lineWidth = 1; ctx.stroke(); }
+    }
+    drawHit(s, dots);
+  }
+
+  // Hit-testing: every place in its own colour on an offscreen canvas, then read the pixel.
+  function drawHit(s, dots) {
+    hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    hctx.clearRect(0, 0, cw, ch);
+    hctx.save(); hctx.translate(view.tx, view.ty); hctx.scale(s, s);
+    for (const c of W.countries) { if (tiny(c, s)) continue; hctx.fillStyle = idColor(c.i); for (const p of c.paths) hctx.fill(p); }
+    hctx.restore();
+    for (const c of dots) { const [x, y] = c.l; hctx.fillStyle = idColor(c.i); hctx.beginPath(); hctx.arc(x * s + view.tx, y * s + view.ty, DOT + 3, 0, Math.PI * 2); hctx.fill(); }
+  }
+  const idColor = i => `rgb(${(i + 1) & 255},${((i + 1) >> 8) & 255},0)`;
+  function pick(px, py) {
+    const d = hctx.getImageData(Math.round(px * dpr), Math.round(py * dpr), 1, 1).data;
+    if (!d[3]) return null;
+    const i = d[0] + (d[1] << 8) - 1;
+    return W.countries[i] || null;
+  }
+
+  // ---------- pointer ----------
+  const ptrs = new Map();
+  let dragging = false, moved = false, pinch0 = null;
+  stage.addEventListener('pointerdown', e => {
+    if (e.target !== canvas) return;
+    stage.setPointerCapture(e.pointerId);
+    ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (ptrs.size === 1) { dragging = true; moved = false; }
+    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch0 = { d: Math.hypot(a.x - b.x, a.y - b.y), k: view.k, cx: (a.x + b.x) / 2, cy: (a.y + b.y) / 2, tx: view.tx, ty: view.ty }; }
+  });
+  stage.addEventListener('pointermove', e => {
+    const r = stage.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+    if (ptrs.has(e.pointerId)) {
+      const prev = ptrs.get(e.pointerId);
+      ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 2 && pinch0) {
+        const [a, b] = [...ptrs.values()];
+        const d = Math.hypot(a.x - b.x, a.y - b.y), cx = (a.x + b.x) / 2 - r.left, cy = (a.y + b.y) / 2 - r.top;
+        const k1 = Math.min(KMAX, Math.max(KMIN, pinch0.k * d / pinch0.d)), rr = k1 / pinch0.k;
+        view.tx = cx - (pinch0.cx - r.left - pinch0.tx) * rr; view.ty = cy - (pinch0.cy - r.top - pinch0.ty) * rr; view.k = k1;
+        moved = true; clamp(); draw(); return;
+      }
+      if (dragging) {
+        const dx = e.clientX - prev.x, dy = e.clientY - prev.y;
+        if (Math.abs(e.clientX - (pinchStart(e))) > 0) {}
+        if (!moved && Math.hypot(dx, dy) < 1) return;
+        moved = true; stage.classList.add('dragging'); hideTip();
+        view.tx += dx; view.ty += dy; clamp(); draw(); return;
+      }
+    }
+    if (e.pointerType !== 'touch') setHover(pick(px, py), px, py);
+  });
+  function pinchStart() { return 0; }
+  function up(e) {
+    const wasPinch = ptrs.size === 2;
+    ptrs.delete(e.pointerId);
+    if (ptrs.size < 2) pinch0 = null;
+    if (ptrs.size === 0) {
+      dragging = false; stage.classList.remove('dragging');
+      if (!moved && !wasPinch && e.type === 'pointerup') {
+        const r = stage.getBoundingClientRect(), c = pick(e.clientX - r.left, e.clientY - r.top);
+        if (c) { toggle(c.c); if (e.pointerType === 'touch') flashTip(c, e.clientX - r.left, e.clientY - r.top); }
+      }
+    }
+  }
+  stage.addEventListener('pointerup', up);
+  stage.addEventListener('pointercancel', up);
+  stage.addEventListener('pointerleave', () => { if (!dragging) setHover(null); });
+  stage.addEventListener('wheel', e => {
+    e.preventDefault();
+    const r = stage.getBoundingClientRect();
+    // Trackpad pinch arrives as ctrl+wheel with small deltas; a mouse wheel is coarse.
+    const f = Math.exp(-e.deltaY * (e.ctrlKey ? 0.01 : 0.0022));
+    zoomAt(f, e.clientX - r.left, e.clientY - r.top);
+    const px = e.clientX - r.left, py = e.clientY - r.top; setHover(pick(px, py), px, py);
+  }, { passive: false });
+
+  function setHover(c, px, py) {
+    if (c !== hover) { hover = c; draw(); stage.classList.toggle('over', !!c); }
+    if (c) { tip.innerHTML = label(c); tip.style.left = px + 'px'; tip.style.top = py + 'px'; tip.classList.add('on'); }
+    else hideTip();
+  }
+  function hideTip() { tip.classList.remove('on'); }
+  let flashT = 0;
+  function flashTip(c, px, py) { tip.innerHTML = label(c); tip.style.left = px + 'px'; tip.style.top = py + 'px'; tip.classList.add('on'); clearTimeout(flashT); flashT = setTimeout(hideTip, 1200); }
+  const label = c => `${visited.has(c.c) ? '<span class="tick">●</span> ' : ''}${esc(c.n)}${c.s ? ` <small>· ${esc(c.s)}</small>` : ''}`;
+  const esc = s => s.replace(/[&<>"]/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+
+  // ---------- panel ----------
+  const REGIONS = ['Europe', 'Asia', 'Africa', 'North America', 'South America', 'Oceania', 'Antarctica', 'Seven seas (open ocean)'];
+  function renderPanel() {
+    const n = counted.filter(c => visited.has(c.c)).length;
+    const t = W.countries.filter(c => c.k === 't' && visited.has(c.c)).length;
+    $('n').textContent = n;
+    $('rail').style.width = (n / 195 * 100) + '%';
+    $('togo').textContent = n === 195 ? 'All of them' : `${195 - n} to go`;
+    $('terr').textContent = t ? `+ ${t} territor${t === 1 ? 'y' : 'ies'}` : '';
+    const box = $('visited');
+    if (!visited.size) { box.innerHTML = '<p class="empty">Nothing yet. Click the map, or start typing.</p>'; return; }
+    const groups = new Map();
+    for (const c of W.countries) if (visited.has(c.c)) { const r = c.r === 'Seven seas (open ocean)' ? 'Islands' : c.r; if (!groups.has(r)) groups.set(r, []); groups.get(r).push(c); }
+    const order = [...groups.keys()].sort((a, b) => REGIONS.indexOf(a) - REGIONS.indexOf(b));
+    box.innerHTML = order.map(r => `<div class="visited__group"><h2>${esc(r)} · ${groups.get(r).length}</h2><ul>${groups.get(r).sort((a, b) => a.n.localeCompare(b.n)).map(c =>
+      `<li><button type="button" class="${c.k === 't' ? 't' : ''}" data-code="${c.c}" aria-label="Remove ${esc(c.n)}">${esc(c.n)}<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></li>`).join('')}</ul></div>`).join('');
+  }
+  $('visited').addEventListener('click', e => {
+    const b = e.target.closest('button[data-code]'); if (b) toggle(b.dataset.code);
+  });
+  $('visited').addEventListener('pointerover', e => {
+    const b = e.target.closest('button[data-code]'); if (b) { const c = byCode.get(b.dataset.code); if (c !== hover) { hover = c; draw(); } }
+  });
+  $('visited').addEventListener('pointerleave', () => { if (hover) { hover = null; draw(); } });
+
+  // ---------- search ----------
+  const q = $('q'), list = $('list');
+  let results = [], sel = 0;
+  const fold = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  const ALIASES = { USA: ['united states', 'america', 'us'], GBR: ['uk', 'britain', 'england', 'scotland', 'wales'], KOR: ['south korea'], PRK: ['north korea'], CZE: ['czech republic'], NLD: ['holland'], ARE: ['uae', 'emirates'], MMR: ['burma'], CIV: ['ivory coast'], SWZ: ['swaziland'], TLS: ['east timor'], VAT: ['holy see', 'vatican city'], MKD: ['macedonia'], COD: ['drc', 'congo kinshasa'], COG: ['congo brazzaville'], CPV: ['cape verde'], TUR: ['turkey'], HKG: ['hong kong'], MAC: ['macau'] };
+  function search(text) {
+    const t = fold(text.trim());
+    if (!t) return [];
+    const hits = [];
+    for (const c of W.countries) {
+      const names = [c.n, ...(ALIASES[c.c] || [])].map(fold);
+      let score = 0;
+      for (const nm of names) { if (nm === t) score = Math.max(score, 3); else if (nm.startsWith(t)) score = Math.max(score, 2); else if (nm.split(/\s+/).some(w => w.startsWith(t))) score = Math.max(score, 1.5); else if (nm.includes(t)) score = Math.max(score, 1); }
+      if (c.c.toLowerCase() === t) score = 3;
+      if (score) hits.push({ c, score });
+    }
+    return hits.sort((a, b) => b.score - a.score || (a.c.k === 't') - (b.c.k === 't') || a.c.n.localeCompare(b.c.n)).slice(0, 8).map(h => h.c);
+  }
+  function renderList() {
+    if (!q.value.trim()) { list.classList.remove('on'); list.innerHTML = ''; return; }
+    if (!results.length) { list.innerHTML = '<li class="search__empty">Nothing by that name</li>'; list.classList.add('on'); return; }
+    list.innerHTML = results.map((c, i) => `<li role="option" data-i="${i}" class="${i === sel ? 'sel' : ''} ${visited.has(c.c) ? 'is-visited' : ''}"><span>${esc(c.n)}</span><small>${c.s ? esc(c.s) : c.k === 't' ? 'territory' : esc(c.r)}</small></li>`).join('');
+    list.classList.add('on');
+  }
+  q.addEventListener('input', () => { results = search(q.value); sel = 0; renderList(); });
+  q.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown') { sel = Math.min(results.length - 1, sel + 1); renderList(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { sel = Math.max(0, sel - 1); renderList(); e.preventDefault(); }
+    else if (e.key === 'Enter') { if (results[sel]) choose(results[sel]); e.preventDefault(); }
+    else if (e.key === 'Escape') { q.value = ''; results = []; renderList(); q.blur(); }
+  });
+  q.addEventListener('blur', () => setTimeout(() => list.classList.remove('on'), 120));
+  q.addEventListener('focus', () => { if (results.length) renderList(); });
+  list.addEventListener('pointerdown', e => { const li = e.target.closest('li[data-i]'); if (li) { e.preventDefault(); choose(results[+li.dataset.i]); } });
+  function choose(c) {
+    if (!visited.has(c.c)) toggle(c.c);
+    zoomTo(c);
+    q.value = ''; results = []; renderList(); q.focus();
+  }
+
+  // ---------- tools ----------
+  $('t-in').addEventListener('click', () => zoomAt(1.6, cw / 2, ch / 2));
+  $('t-out').addEventListener('click', () => zoomAt(1 / 1.6, cw / 2, ch / 2));
+  $('t-world').addEventListener('click', world);
+  $('t-export').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify({ version: 1, visited: [...visited].sort() }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'atlas.json'; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  });
+  $('t-import').addEventListener('click', () => $('file').click());
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    try {
+      const s = JSON.parse(await f.text());
+      const codes = (Array.isArray(s) ? s : s.visited || []).filter(c => byCode.has(c));
+      if (!codes.length) { alert('No country codes in that file.'); return; }
+      codes.forEach(c => visited.add(c)); save(); renderPanel(); draw();
+    } catch (err) { alert('That file isn\'t JSON.'); }
+    e.target.value = '';
+  });
+  $('t-clear').addEventListener('click', () => {
+    if (!visited.size) return;
+    if (confirm(`Clear all ${visited.size} places from the map?`)) { visited.clear(); save(); renderPanel(); draw(); }
+  });
+
+  addEventListener('keydown', e => {
+    if (e.target === q || e.metaKey || e.ctrlKey || e.altKey) return;
+    if (e.key === '/') { q.focus(); e.preventDefault(); return; }
+    const step = 60;
+    if (e.key === '+' || e.key === '=') zoomAt(1.6, cw / 2, ch / 2);
+    else if (e.key === '-') zoomAt(1 / 1.6, cw / 2, ch / 2);
+    else if (e.key === '0') world();
+    else if (e.key === 'ArrowLeft') { view.tx += step; clamp(); draw(); }
+    else if (e.key === 'ArrowRight') { view.tx -= step; clamp(); draw(); }
+    else if (e.key === 'ArrowUp') { view.ty += step; clamp(); draw(); }
+    else if (e.key === 'ArrowDown') { view.ty -= step; clamp(); draw(); }
+    else if (e.key === 'Escape') setHover(null);
+    else return;
+    e.preventDefault();
+  });
+
+  // ---------- theme ----------
+  const CYCLE = ['day', 'night', 'system', 'circadian'];
+  document.querySelector('[data-theme-toggle]').addEventListener('click', () => {
+    const html = document.documentElement;
+    html.dataset.theme = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
+    try { localStorage.setItem('theme', html.dataset.theme); } catch (e) {}
+  });
+  new MutationObserver(() => setTimeout(draw, 260)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(draw, 260));
+
+  // Folded, the tools row drags sideways (same guard the family uses).
+  (function dragRow(row) {
+    let down = false, moved = false, sx = 0, sl = 0;
+    row.addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || row.scrollWidth <= row.clientWidth) return; down = true; moved = false; sx = e.clientX; sl = row.scrollLeft; });
+    row.addEventListener('pointermove', e => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 6) { moved = true; row.classList.add('dragging'); } if (moved) { row.scrollLeft = sl - dx; e.preventDefault(); } });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) row.addEventListener(t, () => { down = false; row.classList.remove('dragging'); });
+    row.addEventListener('click', e => { if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; } }, true);
+  })(document.querySelector('.tools'));
+
+  // Dev hooks, for screenshots: #seed=FRA,JPN,… fills those in without touching
+  // what's saved; &theme=day forces a theme; &focus=FRA opens on that country.
+  const H = new URLSearchParams(location.hash.slice(1));
+  if (H.has('seed')) { H.get('seed').split(',').forEach(c => { if (byCode.has(c)) visited.add(c); }); save = () => {}; }
+  if (H.has('theme')) document.documentElement.dataset.theme = H.get('theme');
+
+  new ResizeObserver(fit).observe(stage);
+  renderPanel();
+  fit();
+  if (H.has('focus') && byCode.has(H.get('focus'))) { const c = byCode.get(H.get('focus')); const [x0, y0, x1, y1] = c.b; view.k = Math.min(KMAX, Math.max(KMIN, Math.min((cw * 0.5) / ((x1 - x0) * s0), (ch * 0.5) / ((y1 - y0) * s0)))); view.tx = cw / 2 - (x0 + x1) / 2 * s0 * view.k; view.ty = ch / 2 - (y0 + y1) / 2 * s0 * view.k; clamp(); draw(); }
+})();
+</script>
+<script src="/assets/circadian.js" defer></script>
+</body>
+</html>
