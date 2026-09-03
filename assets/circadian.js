@@ -118,12 +118,18 @@
   }
 
   var html = document.documentElement;
-  var PROPS = ['--bg', '--fg', '--separator', '--pill-bg'];
+  // The home page reads --fg; the experiments read --ink and derive --muted and
+  // --field from it, so all of them are published or the plays keep their
+  // day-theme ink on a night-time background.
+  var PROPS = ['--bg', '--fg', '--ink', '--muted', '--field', '--separator', '--pill-bg'];
 
   function apply(p) {
     var values = {
       '--bg': rgb(p.bg),
       '--fg': rgb(p.fg),
+      '--ink': rgb(p.fg),
+      '--muted': rgb(lerp(p.fg, p.bg, 0.45)),
+      '--field': rgb(p.fg, p.dark ? 0.06 : 0.04),
       '--separator': rgb(p.fg, p.dark ? 0.08 : 0.05),
       '--pill-bg': rgb(p.bg, p.dark ? 0.5 : 0.2)
     };
