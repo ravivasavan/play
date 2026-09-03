@@ -1,0 +1,1009 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>melt — play</title>
+  <meta name="description" content="Drop an SVG, place melt points on it, and watch the ink bleed — then export the goo as a traced vector.">
+  <script>
+    /* Set data-theme before paint to avoid FOUC. Cycles: day → night → system
+       → circadian. Circadian colours are computed by circadian.js (deferred),
+       so re-apply its last cached tokens here to keep first paint correct. */
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('theme'); } catch (e) {}
+      if (t !== 'day' && t !== 'night' && t !== 'system' && t !== 'circadian') t = 'system';
+      document.documentElement.dataset.theme = t;
+      if (t === 'circadian') {
+        try {
+          var cache = JSON.parse(localStorage.getItem('circadian-cache'));
+          for (var k in cache) document.documentElement.style.setProperty(k, cache[k]);
+        } catch (e) {}
+      }
+    })();
+  </script>
+  <style>
+    @font-face {
+      font-family: "Labil Grotesk";
+      src: url("/assets/fonts/LabilGrotesk-Regular.woff2") format("woff2"),
+           url("/assets/fonts/LabilGrotesk-Regular.woff") format("woff");
+      font-weight: 400;
+      font-style: normal;
+      font-display: swap;
+    }
+
+    :root {
+      /* Brand colours — inherited from ravivasavan.com */
+      --night: #0d1b1e;
+      --orange: #ff795c;
+      --white: #fff5f5;
+
+      --bg: var(--white);
+      --ink: var(--night);
+      --muted: color-mix(in srgb, var(--night) 55%, var(--white));
+      --field: color-mix(in srgb, var(--night) 4%, transparent);
+      --pill-bg: rgba(255, 245, 245, 0.2);
+      --pill-filter: blur(10px) saturate(180%);
+      --separator: color-mix(in srgb, var(--night) 5%, transparent);
+    }
+    [data-theme="night"] {
+      --bg: var(--night);
+      --ink: var(--white);
+      --muted: color-mix(in srgb, var(--white) 55%, var(--night));
+      --field: color-mix(in srgb, var(--white) 6%, transparent);
+      --pill-bg: rgba(13, 27, 30, 0.5);
+      --separator: color-mix(in srgb, var(--white) 8%, transparent);
+    }
+    @media (prefers-color-scheme: dark) {
+      [data-theme="system"] {
+        --bg: var(--night);
+        --ink: var(--white);
+        --muted: color-mix(in srgb, var(--white) 55%, var(--night));
+        --field: color-mix(in srgb, var(--white) 6%, transparent);
+        --pill-bg: rgba(13, 27, 30, 0.5);
+        --separator: color-mix(in srgb, var(--white) 8%, transparent);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; overflow: hidden; }
+    html { scrollbar-gutter: stable; }
+    body {
+      background: var(--bg);
+      color: var(--ink);
+      font-family: "Labil Grotesk", system-ui, sans-serif;
+      font-size: 16px;
+      line-height: 1.3;
+      transition: background-color 240ms ease, color 240ms ease;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) var(--panel-w);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ---- chrome: two levels, same as the family ---- */
+    :root {
+      --chrome-top: 40px;
+      --chrome-rule: 120px;
+      --chrome-tools: 136px;
+      --chrome-pad: 40px;
+      --panel-w: 360px;
+    }
+    .chrome {
+      position: fixed; top: var(--chrome-top); left: 0; right: 0; z-index: 500;
+      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
+      padding: 0 var(--chrome-pad); pointer-events: none;
+    }
+    .chrome > * { pointer-events: auto; }
+    .chrome__back  { justify-self: start; }
+    .chrome__id    { justify-self: center; }
+    .chrome__theme { justify-self: end; }
+    .chrome-rule {
+      position: fixed; top: var(--chrome-rule); left: 0; right: 0;
+      border-top: 1px solid var(--separator); z-index: 499; pointer-events: none;
+    }
+    .tools {
+      position: fixed; top: var(--chrome-tools); left: var(--chrome-pad);
+      right: calc(var(--panel-w) + var(--chrome-pad)); z-index: 500;
+      display: flex; align-items: center; justify-content: flex-end; gap: 8px;
+    }
+    .tool-pill {
+      display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 12px;
+      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); border-radius: 22px;
+      background: transparent; color: var(--ink); font: inherit; font-size: 14px; line-height: 1;
+      cursor: pointer; transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
+    }
+    .tool-pill:hover, .tool-pill:focus-visible {
+      background: var(--separator); border-color: color-mix(in srgb, var(--ink) 28%, transparent);
+    }
+    .tool-pill:active { transform: scale(0.96); }
+    .tool-pill__icon { display: grid; place-items: center; width: 16px; height: 16px; flex-shrink: 0; }
+    .tool-pill__icon svg { width: 16px; height: 16px; }
+    .tool-pill--danger:hover { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, transparent); }
+    .tool-pill.is-on { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, transparent); }
+    .tool-pill[disabled] { opacity: 0.4; cursor: default; }
+    .tool-pill[disabled]:hover { background: transparent; border-color: color-mix(in srgb, var(--ink) 14%, transparent); color: var(--ink); }
+
+    .header-pill {
+      background: var(--pill-bg); backdrop-filter: var(--pill-filter); -webkit-backdrop-filter: var(--pill-filter);
+      border-radius: 32px; padding: 8px; box-shadow: inset 0 0 0 1px var(--separator); margin: 0;
+    }
+    .header-pill__inner { display: flex; align-items: center; gap: 12px; }
+    .header-pill__avatar { width: 48px; height: 48px; border-radius: 48px; background: var(--separator); overflow: hidden; flex-shrink: 0; }
+    .header-pill__avatar svg { width: 100%; height: 100%; display: block; }
+    .header-pill__label { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
+    .header-pill__name { font-size: 16px; line-height: 1.3; }
+    .header-pill__role { font-size: 16px; line-height: 1.3; opacity: 0.6; }
+
+    .icon-pill {
+      background: var(--pill-bg); backdrop-filter: var(--pill-filter); -webkit-backdrop-filter: var(--pill-filter);
+      border: 0; border-radius: 32px; padding: 8px; cursor: pointer; color: var(--ink);
+      box-shadow: inset 0 0 0 1px var(--separator); display: inline-flex; font: inherit;
+      position: relative; overflow: hidden; text-decoration: none;
+    }
+    .icon-pill::before {
+      content: ''; position: absolute; top: 8px; left: 8px; width: 48px; height: 48px;
+      background: var(--separator); border-radius: 48px; z-index: 0;
+      transition: top 240ms cubic-bezier(0.4,0,0.2,1), left 240ms cubic-bezier(0.4,0,0.2,1),
+                  width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1),
+                  border-radius 240ms cubic-bezier(0.4,0,0.2,1);
+    }
+    .icon-pill:hover::before, .icon-pill:focus-visible::before { top: 3.2px; left: 3.2px; width: 57.6px; height: 57.6px; border-radius: 38.4px; }
+    .icon-pill__icon { width: 48px; height: 48px; border-radius: 48px; display: grid; place-items: center; flex-shrink: 0; position: relative; z-index: 1; }
+    .icon-pill__icon svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity 240ms ease-out, transform 240ms cubic-bezier(0.4,0,0.2,1); }
+    .icon-pill--theme .icon-pill__icon svg { opacity: 0; transform: rotate(-90deg) scale(0.85); }
+    [data-theme="day"]       .icon-pill--theme svg[data-tstate="day"],
+    [data-theme="night"]     .icon-pill--theme svg[data-tstate="night"],
+    [data-theme="system"]    .icon-pill--theme svg[data-tstate="system"],
+    [data-theme="circadian"] .icon-pill--theme svg[data-tstate="circadian"] { opacity: 1; transform: rotate(0deg) scale(1); }
+    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="day"],
+    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="circadian"] { opacity: 0; transform: rotate(90deg) scale(0.85); }
+    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="night"],
+    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="system"],
+    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="circadian"],
+    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="day"] { opacity: 1; transform: rotate(0deg) scale(1); }
+
+    /* ---- the stage ---- */
+    #stage { position: relative; overflow: hidden; touch-action: none; }
+    #ink { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+    #stage.over::after {
+      content: ''; position: absolute; inset: 12px; border-radius: 18px; pointer-events: none;
+      border: 1px dashed color-mix(in srgb, var(--orange) 70%, transparent);
+      background: color-mix(in srgb, var(--orange) 6%, transparent);
+    }
+    #dump { position: absolute; left: 0; top: 0; width: 0; height: 0; object-fit: contain; pointer-events: none; }
+
+    #empty {
+      position: absolute; inset: 0; display: grid; place-content: center; justify-items: center;
+      gap: 16px; text-align: center; padding: 200px 24px 24px; pointer-events: none;
+    }
+    #empty > * { pointer-events: auto; }
+    #empty h1 { font-size: 34px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; }
+    #empty p { font-size: 14px; color: var(--muted); max-width: 34ch; }
+    #empty .link { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
+    #empty .link:hover { color: var(--orange); }
+    #fatal { font-size: 14px; color: var(--orange); max-width: 44ch; line-height: 1.45; }
+
+    /* ---- the panel ---- */
+    #panel {
+      position: relative; overflow: auto; padding: 204px 32px 48px 32px;
+      display: flex; flex-direction: column; gap: 28px;
+      scrollbar-width: thin;
+    }
+    /* Divider starts at the rule, like teletext's, so the band above runs unbroken. */
+    #panel::before { content: ''; position: fixed; top: var(--chrome-rule); bottom: 0; right: calc(var(--panel-w)); border-left: 1px solid var(--separator); pointer-events: none; }
+
+    .count { display: flex; flex-direction: column; gap: 10px; }
+    .count__big { font-size: 96px; line-height: 0.95; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+    .count__big small { font-size: 28px; letter-spacing: -0.01em; color: var(--muted); margin-left: 6px; }
+    .count__line { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+
+    h2 { font-size: 12px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; }
+
+    .row { display: flex; flex-direction: column; gap: 4px; }
+    .row + .row { margin-top: 14px; }
+    .row__top { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--muted); }
+    .row__top b { font-weight: 400; color: var(--ink); font-variant-numeric: tabular-nums; }
+
+    input[type="range"] {
+      -webkit-appearance: none; appearance: none; width: 100%; height: 16px;
+      background: transparent; cursor: pointer; margin: 0; display: block;
+    }
+    input[type="range"]::-webkit-slider-runnable-track {
+      height: 1px; border-radius: 1px; background: color-mix(in srgb, var(--ink) 20%, transparent);
+    }
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border: 0;
+      border-radius: 13px; background: var(--orange); margin-top: -6px;
+      transition: transform 140ms ease;
+    }
+    input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.15); }
+    input[type="range"]:focus-visible { outline: none; }
+    input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 30%, transparent); }
+    input[type="range"]::-moz-range-track { height: 1px; background: color-mix(in srgb, var(--ink) 20%, transparent); }
+    input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 13px; background: var(--orange); }
+    input[type="range"]:disabled { opacity: 0.4; cursor: default; }
+
+    .pt {
+      display: grid; grid-template-columns: 22px 1fr 24px; gap: 0 12px; align-items: start;
+      padding: 10px; border-radius: 14px; border: 1px solid transparent; cursor: pointer;
+      transition: background-color 160ms ease, border-color 160ms ease;
+    }
+    .pt + .pt { margin-top: 6px; }
+    .pt:hover { background: var(--field); }
+    .pt.sel { background: var(--field); border-color: color-mix(in srgb, var(--orange) 40%, transparent); }
+    .pt__n {
+      width: 22px; height: 22px; border-radius: 22px; display: grid; place-items: center;
+      font-size: 11px; background: var(--separator); color: var(--muted); font-variant-numeric: tabular-nums;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+    }
+    .pt.sel .pt__n { background: var(--orange); color: var(--white); box-shadow: none; }
+    .pt__x {
+      width: 24px; height: 24px; border-radius: 24px; border: 0; background: transparent;
+      color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0;
+    }
+    .pt__x svg { width: 12px; height: 12px; }
+    .pt__x:hover { color: var(--orange); background: var(--separator); }
+    .pts .empty { font-size: 14px; color: var(--muted); }
+
+    .about { font-size: 13px; line-height: 1.45; color: var(--muted); border-top: 1px solid var(--separator); padding-top: 20px; margin-top: auto; }
+    /* Labil Grotesk ships 400 only, so emphasis is colour, not weight — same as .row__top b. */
+    .about b { font-weight: 400; color: var(--ink); }
+    .about p + p { margin-top: 8px; }
+    .about a { color: inherit; }
+
+    /* Fold: stage on top, panel under it, chrome tightens like the family does */
+    @media (max-width: 900px) {
+      body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 70vh auto; overflow: auto; }
+      html, body { height: auto; }
+      :root { --chrome-top: 16px; --chrome-rule: 96px; --chrome-tools: 112px; --chrome-pad: 16px; }
+      .header-pill__role { display: none; }
+      .tools {
+        left: 0; right: 0; justify-content: flex-start; padding: 0 var(--chrome-pad);
+        overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
+        touch-action: pan-x; scrollbar-width: none; cursor: grab;
+      }
+      .tools::-webkit-scrollbar { display: none; }
+      .tools.dragging { cursor: grabbing; }
+      .tool-pill { flex: 0 0 auto; }
+      #stage { height: 70vh; }
+      #empty { padding-top: 180px; }
+      #panel { padding: 24px 16px 64px; overflow: visible; border-top: 1px solid var(--separator); }
+      #panel::before { display: none; }
+      .count__big { font-size: 72px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="chrome">
+    <a class="icon-pill chrome__back" href="/" aria-label="Back to play index">
+      <span class="icon-pill__icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 18-6-6 6-6"/></svg>
+      </span>
+    </a>
+    <header class="header-pill chrome__id">
+      <div class="header-pill__inner">
+        <div class="header-pill__avatar">
+          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg"> <rect width="2.00001" height="2.00001" transform="matrix(-1 0 0 1 32 13)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 20 13)" fill="currentColor"/> <path d="M34.0098 34.9766V48H36V34.9766H34.0098ZM13.9902 34.9766H12V48H13.9902V35.0293H15.9805V32.9814H13.9902V34.9766ZM32 13H16V9H14V17H16V15H32V25H30V27H18V31H16V33H18V35H30V33H32V35H34V33H32V31H34V15H40V13H34V9H32V13ZM12 22H14V17H12V22ZM28 21H30V19H28V21ZM20 21H22V19H20V21ZM30 9H32V7H30V9ZM16 9H18V7H16V9ZM18 7H30V5H18V7Z" fill="currentColor"/> <rect width="4" height="6" transform="matrix(-1 0 0 1 18 27)" fill="currentColor"/> <rect width="2.00001" height="4.00001" transform="matrix(-1 0 0 1 16 21)" fill="currentColor"/> <path d="M16 25H18V21H16V25Z" fill="currentColor"/> <rect width="16.0001" height="2.00001" transform="matrix(-1 0 0 1 30 25)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 32 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 24 23)" fill="currentColor"/> <rect width="4.00001" height="2.00001" transform="matrix(-1 0 0 1 28 21)" fill="currentColor"/> </svg>
+        </div>
+        <div class="header-pill__label">
+          <span class="header-pill__name">Ravi Vasavan</span>
+          <span class="header-pill__role">Melt</span>
+        </div>
+      </div>
+    </header>
+    <button class="icon-pill icon-pill--theme chrome__theme" type="button" aria-label="Toggle theme" data-theme-toggle>
+      <span class="icon-pill__icon">
+        <svg data-tstate="day" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+        <svg data-tstate="night" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+        <svg data-tstate="system" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+        <svg data-tstate="circadian" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+      </span>
+    </button>
+  </div>
+  <div class="chrome-rule" aria-hidden="true"></div>
+
+  <nav class="tools" aria-label="Melt controls">
+    <button class="tool-pill" id="t-upload" type="button" aria-label="Upload an SVG">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
+      <span class="tool-pill__label">Upload</span>
+    </button>
+    <button class="tool-pill" id="t-before" type="button" aria-pressed="false" disabled aria-label="Show the unmelted source">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg></span>
+      <span class="tool-pill__label">Before</span>
+    </button>
+    <button class="tool-pill tool-pill--danger" id="t-clear" type="button" disabled aria-label="Remove all melt points">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg></span>
+      <span class="tool-pill__label">Clear</span>
+    </button>
+    <button class="tool-pill" id="t-export" type="button" disabled aria-label="Download the melt as an SVG">
+      <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span>
+      <span class="tool-pill__label">Export</span>
+    </button>
+    <input type="file" id="file" accept=".svg,image/svg+xml" hidden>
+  </nav>
+
+  <main id="stage" aria-label="Melt stage">
+    <canvas id="ink"></canvas>
+    <img id="dump" alt="" hidden>
+    <div id="empty">
+      <h1>Drop an SVG here</h1>
+      <p id="fatal" hidden></p>
+      <button class="tool-pill" id="e-upload" type="button">
+        <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
+        <span class="tool-pill__label">Upload</span>
+      </button>
+      <button class="link" id="e-sample" type="button">or try the sample</button>
+    </div>
+  </main>
+
+  <aside id="panel" aria-label="Melt settings">
+    <section class="count" aria-live="polite">
+      <div class="count__big"><span id="n">0</span><small id="nlabel">melt points</small></div>
+      <div class="count__line" id="status">Drop an SVG to start</div>
+    </section>
+
+    <section class="global">
+      <h2>Global</h2>
+      <div class="row">
+        <div class="row__top"><label for="s-passes">Passes</label><b id="v-passes">3</b></div>
+        <input id="s-passes" type="range" min="1" max="6" step="1" value="3" disabled>
+      </div>
+      <div class="row">
+        <div class="row__top"><label for="s-thresh">Threshold</label><b id="v-thresh">50%</b></div>
+        <input id="s-thresh" type="range" min="0.05" max="0.95" step="0.01" value="0.5" disabled>
+      </div>
+      <div class="row">
+        <div class="row__top"><label for="s-base">Everywhere</label><b id="v-base">0 px</b></div>
+        <input id="s-base" type="range" min="0" max="40" step="1" value="0" disabled>
+      </div>
+    </section>
+
+    <section class="pts">
+      <h2>Points</h2>
+      <div id="ptlist"><p class="empty">Load an SVG first.</p></div>
+    </section>
+
+    <section class="about">
+      <p>Each melt point blurs the ink around it and re-thresholds it, so strokes swell, corners round off and letters bleed into each other. <b>Passes</b> is how many blur-and-rethreshold rounds; <b>threshold</b> is the ink level — low bleeds, high erodes.</p>
+      <p>Your file never leaves this browser. Nothing is uploaded; the melt runs on a canvas here, and your points are kept in local storage.</p>
+      <p>Export traces the melted mask at twice the working resolution and writes it as one <code>evenodd</code> path in the original SVG's coordinate space.</p>
+    </section>
+  </aside>
+
+<script src="melt.js"></script>
+<script src="trace.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = id => document.getElementById(id);
+  const stage = $('stage'), canvas = $('ink'), empty = $('empty'), dump = $('dump');
+  const ctx = canvas.getContext('2d');
+  const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+
+  // Surface anything that throws where a screenshot can see it.
+  let fatalShown = false;
+  // With artwork on the stage, a complaint belongs on the status line, not
+  // behind an overlay covering the work.
+  function say(msg) {
+    if (mask) { $('status').textContent = msg; return; }
+    const p = $('fatal');
+    p.textContent = msg;
+    p.hidden = false;
+    empty.hidden = false;
+  }
+  function stamp(msg) {
+    if (!fatalShown) { document.title = 'melt — ERROR: ' + msg; fatalShown = true; }
+  }
+  // A stray throw with artwork already on the stage is not worth binning the
+  // work over: stamp the title (so a headless run still sees it), put it on the
+  // status line, carry on.
+  function oops(msg) { stamp(msg); say(msg); }
+  // Unrecoverable: nothing to melt with, so retire the empty state's buttons.
+  function fatal(msg) {
+    stamp(msg);
+    mask = null;
+    say(msg);
+    $('e-upload').hidden = true;
+    $('e-sample').hidden = true;
+  }
+  addEventListener('error', e => oops((e.message || 'script error') + (e.filename ? ' (' + e.filename.split('/').pop() + ')' : '')));
+
+  const MELT = window.MELT, TRACE = window.TRACE;
+
+  // ---------- state ----------
+  const KEY = 'melt.state';
+  const WORK = 1024;            // longest artwork side, in mask px
+  const HIT = 12, RING = 8;     // pointer slop, in screen px
+  let src = null;               // { text, width, height }
+  let name = '';                // file name
+  let mask = null;              // { w, h, scale, ox, oy, alpha }
+  let points = [];              // { x, y, r, heat } in mask px
+  let sel = -1;
+  const opts = { passes: 3, threshold: 0.5, base: 0 };
+  let binary = null;
+  let before = false, holding = false, gone = false;
+  let off = null, offCtx = null, offImg = null;
+  let saving = true, booted = false;
+
+  const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+
+  if (!MELT || !TRACE) {
+    const missing = [!MELT && 'melt.js', !TRACE && 'trace.js'].filter(Boolean).join(' and ');
+    fatal(missing + ' did not load, so there is nothing to melt with.');
+    return;
+  }
+
+  function save() {
+    if (!saving) return;
+    try {
+      const s = { version: 1, name, points, passes: opts.passes, threshold: opts.threshold, base: opts.base };
+      if (src && src.text.length < 1e6) s.svg = src.text;
+      localStorage.setItem(KEY, JSON.stringify(s));
+    } catch (e) {}
+  }
+
+  // ---------- history ----------
+  const hist = [];
+  function push() {
+    hist.push(JSON.stringify(points));
+    if (hist.length > 50) hist.shift();
+  }
+  function undo() {
+    const s = hist.pop();
+    if (s == null) return;
+    points = JSON.parse(s);
+    if (sel >= points.length) sel = points.length - 1;
+    buildList(); syncCount(); queue(); save();
+  }
+
+  // ---------- loading ----------
+  async function load(text, fileName, keep) {
+    let parsed;
+    try { parsed = MELT.parseSvg(text); }
+    catch (e) { say(e && e.message ? e.message : 'That file is not an SVG.'); return false; }
+    src = parsed;
+    name = fileName || 'artwork.svg';
+    try { mask = await MELT.rasterise(src, WORK); }
+    catch (e) { say('Could not rasterise that SVG: ' + (e && e.message ? e.message : e)); return false; }
+    off = document.createElement('canvas');
+    off.width = mask.w; off.height = mask.h;
+    offCtx = off.getContext('2d');
+    offImg = offCtx.createImageData(mask.w, mask.h);
+    if (!keep) { points = []; sel = -1; hist.length = 0; }
+    empty.hidden = true;
+    $('fatal').hidden = true;
+    setDisabled(false);
+    buildList(); syncCount(); fit(); renderNow();
+    // On the boot path the caller seeds points first and dumps after, so one
+    // 2× export is enough.
+    if (booted && H.has('svgdump')) showDump();
+    return true;
+  }
+
+  function defaultPoint(x, y) {
+    const r = 0.22 * Math.min(mask.w, mask.h);
+    return { x, y, r, heat: 0.1 * r };
+  }
+
+  // ---------- view ----------
+  let cw = 0, ch = 0, dpr = 1, vs = 1, vtx = 0, vty = 0;
+  const PAD = 24;
+  function fit() {
+    const r = stage.getBoundingClientRect();
+    cw = r.width; ch = r.height;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+    canvas.width = Math.max(1, Math.round(cw * dpr));
+    canvas.height = Math.max(1, Math.round(ch * dpr));
+    if (!mask) { paint(); return; }
+    const top = matchMedia('(max-width: 900px)').matches ? 180 : 200;
+    vs = Math.min((cw - PAD * 2) / mask.w, (ch - top - PAD) / mask.h);
+    if (!(vs > 0)) vs = 0.0001;
+    vtx = (cw - mask.w * vs) / 2;
+    vty = top + (ch - top - mask.h * vs) / 2;
+    placeDump();
+    paint();
+  }
+  const toScreenX = mx => mx * vs + vtx;
+  const toScreenY = my => my * vs + vty;
+  const toMaskX = px => (px - vtx) / vs;
+  const toMaskY = py => (py - vty) / vs;
+
+  // ---------- render ----------
+  let pending = 0;
+  function queue() {
+    if (pending) return;
+    pending = requestAnimationFrame(() => { pending = 0; renderNow(); });
+  }
+  function renderNow() {
+    if (!mask) { paint(); return; }
+    binary = MELT.render(mask.alpha, mask.w, mask.h, points, {
+      passes: opts.passes, threshold: opts.threshold, base: opts.base
+    });
+    // Enough heat for the sigma to dwarf the stroke width erases the artwork
+    // outright — physically right, but a blank stage needs saying out loud.
+    let any = false;
+    for (let i = 0; i < binary.length; i++) if (binary[i]) { any = true; break; }
+    const g = !any && (points.length > 0 || opts.base > 0);
+    if (g !== gone) { gone = g; syncCount(); }
+    paint();
+  }
+
+  function rgbOf(css, fallback) {
+    probe.fillStyle = fallback;
+    try { probe.fillStyle = css; } catch (e) {}
+    probe.clearRect(0, 0, 1, 1);
+    probe.fillRect(0, 0, 1, 1);
+    const d = probe.getImageData(0, 0, 1, 1).data;
+    return [d[0], d[1], d[2]];
+  }
+
+  function paint() {
+    const v = getComputedStyle(document.documentElement);
+    const inkCss = v.getPropertyValue('--ink').trim() || '#0d1b1e';
+    const mutedCss = v.getPropertyValue('--muted').trim() || '#7a8385';
+    const orangeCss = v.getPropertyValue('--orange').trim() || '#ff795c';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+    if (!mask) return;
+
+    // The ink layer: coverage straight into the alpha channel, tinted with --ink.
+    const arr = (before || holding) ? mask.alpha : (binary || mask.alpha);
+    const rgb = rgbOf(inkCss, '#0d1b1e');
+    const d = offImg.data;
+    for (let i = 0, j = 0; i < arr.length; i++, j += 4) {
+      d[j] = rgb[0]; d[j + 1] = rgb[1]; d[j + 2] = rgb[2]; d[j + 3] = arr[i];
+    }
+    offCtx.putImageData(offImg, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(off, vtx, vty, mask.w * vs, mask.h * vs);
+
+    // Points, in screen space so they stay the same size at every fit.
+    ctx.lineWidth = 1;
+    points.forEach((p, i) => {
+      const sx = toScreenX(p.x), sy = toScreenY(p.y), sr = Math.max(3, p.r * vs);
+      const on = i === sel;
+      ctx.strokeStyle = on ? orangeCss : mutedCss;
+      ctx.lineWidth = on ? 2 : 1;
+      ctx.beginPath(); ctx.arc(sx, sy, sr, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = on ? orangeCss : mutedCss;
+      ctx.beginPath(); ctx.arc(sx, sy, 2.5, 0, Math.PI * 2); ctx.fill();
+      if (on) {
+        // Label sits above the ring, on the page rather than on the ink.
+        ctx.font = '12px "Labil Grotesk", system-ui, sans-serif';
+        ctx.textBaseline = 'bottom';
+        ctx.textAlign = 'center';
+        const t = 'heat ' + Math.round(p.heat) + ' · reach ' + Math.round(p.r);
+        const half = ctx.measureText(t).width / 2;
+        const ly = sy - sr - 8 < 16 ? Math.min(ch - 8, sy + sr + 20) : sy - sr - 8;
+        ctx.fillText(t, clamp(sx, half + 8, cw - half - 8), ly);
+        ctx.textAlign = 'left';
+      }
+    });
+  }
+
+  // ---------- panel ----------
+  function syncCount() {
+    $('n').textContent = points.length;
+    $('nlabel').textContent = points.length === 1 ? 'melt point' : 'melt points';
+    $('status').textContent = gone
+      ? 'melted clean away · less heat, or a lower threshold'
+      : src
+        ? name + ' · ' + Math.round(src.width) + '×' + Math.round(src.height) + ' units'
+        : 'Drop an SVG to start';
+  }
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+  function buildList() {
+    const box = $('ptlist');
+    if (!points.length) {
+      box.innerHTML = '<p class="empty">' + (mask ? 'Click the artwork to place a melt point.' : 'Load an SVG first.') + '</p>';
+      return;
+    }
+    box.innerHTML = points.map((p, i) => `<div class="pt${i === sel ? ' sel' : ''}" data-i="${i}">
+      <span class="pt__n">${i + 1}</span>
+      <div>
+        <div class="row">
+          <div class="row__top"><span>Heat</span><b data-v="heat">${Math.round(p.heat)}</b></div>
+          <input type="range" data-k="heat" min="0" max="120" step="1" value="${Math.round(p.heat)}" aria-label="Heat of point ${i + 1}">
+        </div>
+        <div class="row">
+          <div class="row__top"><span>Reach</span><b data-v="r">${Math.round(p.r)}</b></div>
+          <input type="range" data-k="r" min="20" max="600" step="1" value="${Math.round(p.r)}" aria-label="Reach of point ${i + 1}">
+        </div>
+      </div>
+      <button class="pt__x" type="button" data-x="${i}" aria-label="Remove point ${i + 1}">${X}</button>
+    </div>`).join('');
+  }
+
+  // Update values in place so dragging a slider never rebuilds it underfoot.
+  function syncList() {
+    const rows = $('ptlist').querySelectorAll('.pt');
+    rows.forEach(row => {
+      const i = +row.dataset.i, p = points[i];
+      if (!p) return;
+      row.classList.toggle('sel', i === sel);
+      row.querySelectorAll('input[data-k]').forEach(inp => {
+        const val = String(Math.round(p[inp.dataset.k]));
+        if (inp.value !== val && document.activeElement !== inp) inp.value = val;
+      });
+      row.querySelectorAll('b[data-v]').forEach(b => { b.textContent = Math.round(p[b.dataset.v]); });
+    });
+  }
+
+  $('ptlist').addEventListener('input', e => {
+    const inp = e.target.closest('input[data-k]'); if (!inp) return;
+    const row = inp.closest('.pt'), i = +row.dataset.i, p = points[i];
+    if (!p) return;
+    if (!inp.dataset.dirty) { push(); inp.dataset.dirty = '1'; }
+    p[inp.dataset.k] = +inp.value;
+    sel = i;
+    syncList(); queue(); save();
+  });
+  $('ptlist').addEventListener('change', e => {
+    const inp = e.target.closest('input[data-k]'); if (inp) delete inp.dataset.dirty;
+  });
+  $('ptlist').addEventListener('click', e => {
+    const x = e.target.closest('button[data-x]');
+    if (x) { removePoint(+x.dataset.x); return; }
+    const row = e.target.closest('.pt');
+    if (row) { sel = +row.dataset.i; syncList(); paint(); }
+  });
+
+  function removePoint(i) {
+    if (!points[i]) return;
+    push();
+    points.splice(i, 1);
+    if (sel === i) sel = -1; else if (sel > i) sel--;
+    buildList(); syncCount(); queue(); save();
+  }
+
+  function bindGlobal(id, key, fmt, cast) {
+    const inp = $(id), out = $('v-' + id.slice(2));
+    inp.addEventListener('input', () => {
+      opts[key] = cast(inp.value);
+      out.textContent = fmt(opts[key]);
+      queue(); save();
+    });
+    return { inp, out, fmt };
+  }
+  const gPasses = bindGlobal('s-passes', 'passes', v => v, Number);
+  const gThresh = bindGlobal('s-thresh', 'threshold', v => Math.round(v * 100) + '%', Number);
+  const gBase = bindGlobal('s-base', 'base', v => v + ' px', Number);
+  function syncGlobal() {
+    gPasses.inp.value = opts.passes; gPasses.out.textContent = gPasses.fmt(opts.passes);
+    gThresh.inp.value = opts.threshold; gThresh.out.textContent = gThresh.fmt(opts.threshold);
+    gBase.inp.value = opts.base; gBase.out.textContent = gBase.fmt(opts.base);
+  }
+
+  function setDisabled(d) {
+    for (const id of ['t-before', 't-clear', 't-export']) $(id).disabled = d;
+    for (const id of ['s-passes', 's-thresh', 's-base']) $(id).disabled = d;
+  }
+
+  // ---------- pointer ----------
+  let drag = null;   // { mode:'move'|'reach', i, dx, dy }
+  let moved = false;
+
+  function hitTest(px, py) {
+    // Selected point first, so its handles win when points overlap.
+    const order = [];
+    if (points[sel]) order.push(sel);
+    for (let i = points.length - 1; i >= 0; i--) if (i !== sel) order.push(i);
+    for (const i of order) {
+      const p = points[i], sx = toScreenX(p.x), sy = toScreenY(p.y), dist = Math.hypot(px - sx, py - sy);
+      if (dist <= HIT) return { i, mode: 'move' };
+      if (Math.abs(dist - p.r * vs) <= RING) return { i, mode: 'reach' };
+    }
+    return null;
+  }
+
+  stage.addEventListener('pointerdown', e => {
+    if (!mask || e.button !== 0) return;
+    const r = stage.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+    const h = hitTest(px, py);
+    moved = false;
+    if (h) {
+      sel = h.i;
+      push();
+      drag = h.mode === 'move'
+        ? { mode: 'move', i: h.i, dx: points[h.i].x - toMaskX(px), dy: points[h.i].y - toMaskY(py) }
+        : { mode: 'reach', i: h.i };
+      try { stage.setPointerCapture(e.pointerId); } catch (err) {}  // optional nicety; never worth a throw
+      syncList(); paint();
+    } else {
+      drag = { mode: 'pending', px, py };
+    }
+  });
+
+  stage.addEventListener('pointermove', e => {
+    if (!mask) return;
+    const r = stage.getBoundingClientRect(), px = e.clientX - r.left, py = e.clientY - r.top;
+    if (!drag) {
+      const h = hitTest(px, py);
+      canvas.style.cursor = h ? (h.mode === 'move' ? 'move' : 'ew-resize') : 'crosshair';
+      return;
+    }
+    if (drag.mode === 'pending') {
+      if (Math.hypot(px - drag.px, py - drag.py) > 4) moved = true;
+      return;
+    }
+    moved = true;
+    const p = points[drag.i];
+    if (!p) return;
+    if (drag.mode === 'move') {
+      p.x = clamp(toMaskX(px) + drag.dx, 0, mask.w);
+      p.y = clamp(toMaskY(py) + drag.dy, 0, mask.h);
+    } else {
+      const d = Math.hypot(px - toScreenX(p.x), py - toScreenY(p.y));
+      p.r = clamp(d / vs, 20, 600);
+    }
+    syncList(); queue();
+  });
+
+  function endDrag(e) {
+    if (!drag) return;
+    const d = drag; drag = null;
+    if (d.mode === 'pending') {
+      if (!moved && e.type === 'pointerup' && mask) {
+        push();
+        points.push(defaultPoint(clamp(toMaskX(d.px), 0, mask.w), clamp(toMaskY(d.py), 0, mask.h)));
+        sel = points.length - 1;
+        buildList(); syncCount(); queue(); save();
+      }
+      return;
+    }
+    save();
+  }
+  stage.addEventListener('pointerup', endDrag);
+  stage.addEventListener('pointercancel', endDrag);
+  stage.addEventListener('pointerleave', () => { canvas.style.cursor = ''; });
+
+  stage.addEventListener('wheel', e => {
+    const p = points[sel];
+    if (!mask || !p) return;
+    // Only over the selected point, so the fold can still scroll the page.
+    const r = stage.getBoundingClientRect();
+    const d = Math.hypot(e.clientX - r.left - toScreenX(p.x), e.clientY - r.top - toScreenY(p.y));
+    if (d > p.r * vs + RING) return;
+    e.preventDefault();
+    p.heat = clamp(p.heat - e.deltaY * 0.08, 0, 120);
+    syncList(); queue(); save();
+  }, { passive: false });
+
+  // ---------- keys ----------
+  addEventListener('keydown', e => {
+    const tag = (e.target.tagName || '').toLowerCase();
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'z') { undo(); e.preventDefault(); return; }
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (tag === 'input' || tag === 'textarea') return;
+    const p = points[sel];
+    if (e.key === '[' || e.key === ']') {
+      if (!p) return;
+      push();
+      p.heat = clamp(p.heat + (e.key === ']' ? 4 : -4), 0, 120);
+      syncList(); queue(); save();
+    } else if (e.key === 'Backspace' || e.key === 'Delete') {
+      if (sel < 0) return;
+      removePoint(sel);
+    } else if (e.key === 'Escape') {
+      sel = -1; syncList(); paint();
+    } else if (e.key === 'b' || e.key === 'B') {
+      if (holding || !mask) return;
+      holding = true; $('t-before').classList.add('is-on'); paint();
+    } else return;
+    e.preventDefault();
+  });
+  addEventListener('keyup', e => {
+    if (e.key === 'b' || e.key === 'B') {
+      holding = false;
+      $('t-before').classList.toggle('is-on', before);
+      paint();
+    }
+  });
+
+  // ---------- tools ----------
+  $('t-upload').addEventListener('click', () => $('file').click());
+  $('e-upload').addEventListener('click', () => $('file').click());
+  $('e-sample').addEventListener('click', () => loadSample(true));
+  $('file').addEventListener('change', async e => {
+    const f = e.target.files[0];
+    e.target.value = '';
+    if (f) await loadFile(f);
+  });
+  $('t-before').addEventListener('click', () => {
+    before = !before;
+    $('t-before').classList.toggle('is-on', before);
+    $('t-before').setAttribute('aria-pressed', String(before));
+    paint();
+  });
+  $('t-clear').addEventListener('click', () => {
+    if (!points.length) return;
+    if (points.length >= 3 && !confirm('Remove all ' + points.length + ' melt points?')) return;
+    push();
+    points = []; sel = -1;
+    buildList(); syncCount(); queue(); save();
+  });
+  $('t-export').addEventListener('click', async () => {
+    if (!mask) return;
+    const btn = $('t-export');
+    btn.disabled = true;
+    try {
+      const out = await buildExport();
+      const blob = new Blob([out.svg], { type: 'image/svg+xml' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = out.name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    } catch (err) {
+      say('Export failed: ' + (err && err.message ? err.message : err));
+    }
+    btn.disabled = false;
+  });
+
+  async function loadFile(f) {
+    if (!/svg/i.test(f.type) && !/\.svg$/i.test(f.name)) { say('That file is not an SVG.'); return; }
+    const ok = await load(await f.text(), f.name, false);
+    if (ok) save();
+  }
+  async function loadSample(persist) {
+    try {
+      const text = await (await fetch('sample.svg', { cache: 'no-store' })).text();
+      const ok = await load(text, 'sample.svg', false);
+      if (ok && persist) save();
+      return ok;
+    } catch (e) { say('Could not fetch sample.svg'); }
+    return false;
+  }
+
+  // Drop anywhere on the stage.
+  let overDepth = 0;
+  const hasSvg = dt => !!dt && Array.from(dt.items || []).some(i => i.kind === 'file');
+  stage.addEventListener('dragenter', e => { e.preventDefault(); if (hasSvg(e.dataTransfer)) { overDepth++; stage.classList.add('over'); } });
+  stage.addEventListener('dragover', e => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; });
+  stage.addEventListener('dragleave', e => { e.preventDefault(); if (--overDepth <= 0) { overDepth = 0; stage.classList.remove('over'); } });
+  stage.addEventListener('drop', async e => {
+    e.preventDefault(); overDepth = 0; stage.classList.remove('over');
+    const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) await loadFile(f);
+  });
+  addEventListener('dragover', e => e.preventDefault());
+  addEventListener('drop', e => e.preventDefault());
+
+  // ---------- export ----------
+  const baseName = () => (name || 'melt').replace(/\.svg$/i, '') || 'melt';
+  async function buildExport() {
+    const m2 = await MELT.rasterise(src, WORK * 2);
+    const p2 = points.map(p => ({ x: p.x * 2, y: p.y * 2, r: p.r * 2, heat: p.heat * 2 }));
+    const bin = MELT.render(m2.alpha, m2.w, m2.h, p2, {
+      passes: opts.passes, threshold: opts.threshold, base: opts.base * 2
+    });
+    let loops = TRACE.loops(bin, m2.w, m2.h);
+    loops = TRACE.simplify(loops, 0.75);
+    // Pixels → the ORIGINAL document's units: u = (px − offset)/scale + viewBox min,
+    // folded into TRACE's (p + d) * s so one transform does all of it.
+    const mnx = src.minX || 0, mny = src.minY || 0;
+    const s = 1 / m2.scale, dx = -m2.ox + mnx * m2.scale, dy = -m2.oy + mny * m2.scale;
+    let x0 = mnx, y0 = mny, x1 = mnx + src.width, y1 = mny + src.height;
+    for (const L of loops) for (const pt of L) {
+      const ux = (pt[0] + dx) * s, uy = (pt[1] + dy) * s;
+      if (ux < x0) x0 = ux; if (uy < y0) y0 = uy;
+      if (ux > x1) x1 = ux; if (uy > y1) y1 = uy;
+    }
+    x0 = Math.floor(x0); y0 = Math.floor(y0);
+    const vb = [x0, y0, Math.max(1, Math.ceil(x1 - x0)), Math.max(1, Math.ceil(y1 - y0))];
+    const svg = TRACE.svg({
+      loops, transform: { scale: s, dx, dy }, viewBox: vb, fill: '#0a0a0a', background: null
+    });
+    return { svg, name: baseName() + '-melt.svg', viewBox: vb };
+  }
+
+  let dumpUrl = null, dumpVB = null;
+  async function showDump() {
+    try {
+      const out = await buildExport();
+      if (dumpUrl) URL.revokeObjectURL(dumpUrl);
+      dumpUrl = URL.createObjectURL(new Blob([out.svg], { type: 'image/svg+xml' }));
+      dumpVB = out.viewBox;
+      dump.src = dumpUrl;
+      dump.hidden = false;
+      placeDump();
+    } catch (e) { oops('svgdump failed: ' + (e && e.message ? e.message : e)); }
+  }
+  // Sit the dump exactly where its own viewBox says it belongs, in mask px →
+  // screen px. The exported viewBox grows when the melt swells past the
+  // artwork, so it can't be assumed to be the source viewBox.
+  function placeDump() {
+    if (dump.hidden || !mask || !dumpVB) return;
+    const k = mask.scale * vs;                 // screen px per SVG unit
+    const mnx = src.minX || 0, mny = src.minY || 0;
+    dump.style.left = (vtx + mask.ox * vs + (dumpVB[0] - mnx) * k) + 'px';
+    dump.style.top = (vty + mask.oy * vs + (dumpVB[1] - mny) * k) + 'px';
+    dump.style.width = (dumpVB[2] * k) + 'px';
+    dump.style.height = (dumpVB[3] * k) + 'px';
+  }
+
+  // ---------- theme ----------
+  const CYCLE = ['day', 'night', 'system', 'circadian'];
+  document.querySelector('[data-theme-toggle]').addEventListener('click', () => {
+    const html = document.documentElement;
+    html.dataset.theme = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
+    try { localStorage.setItem('theme', html.dataset.theme); } catch (e) {}
+  });
+  new MutationObserver(() => setTimeout(paint, 260)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(paint, 260));
+
+  // Folded, the tools row drags sideways (same guard the family uses).
+  (function dragRow(row) {
+    let down = false, rowMoved = false, sx = 0, sl = 0;
+    row.addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || row.scrollWidth <= row.clientWidth) return; down = true; rowMoved = false; sx = e.clientX; sl = row.scrollLeft; });
+    row.addEventListener('pointermove', e => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 6) { rowMoved = true; row.classList.add('dragging'); } if (rowMoved) { row.scrollLeft = sl - dx; e.preventDefault(); } });
+    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) row.addEventListener(t, () => { down = false; row.classList.remove('dragging'); });
+    row.addEventListener('click', e => { if (rowMoved) { e.preventDefault(); e.stopPropagation(); rowMoved = false; } }, true);
+  })(document.querySelector('.tools'));
+
+  // ---------- boot ----------
+  // Dev hooks: #sample loads the sample without touching saved state;
+  // &theme= forces a theme; &points=x,y,r,h;… seeds points as fractions;
+  // &passes= &threshold= &base= set the globals; &before shows the source; #svgdump overlays the traced export.
+  const H = new URLSearchParams(location.hash.slice(1));
+  if (H.has('theme')) document.documentElement.dataset.theme = H.get('theme');
+  const seeded = ['sample', 'points', 'passes', 'threshold', 'base'].some(k => H.has(k));
+  if (seeded) saving = false;
+  if (H.has('passes')) opts.passes = clamp(Math.round(+H.get('passes')), 1, 6);
+  if (H.has('threshold')) opts.threshold = clamp(+H.get('threshold'), 0.05, 0.95);
+  if (H.has('base')) opts.base = clamp(+H.get('base'), 0, 40);
+  syncGlobal();
+
+  function seedPoints() {
+    if (!H.has('points') || !mask) return;
+    const min = Math.min(mask.w, mask.h);
+    points = H.get('points').split(';').map(s => s.split(',').map(Number)).filter(a => a.length >= 4 && a.every(n => isFinite(n)))
+      .map(([x, y, r, h]) => ({ x: x * mask.w, y: y * mask.h, r: Math.max(20, r * min), heat: h * min }));
+    sel = points.length ? 0 : -1;
+  }
+
+  setDisabled(true);
+  buildList(); syncCount();
+  new ResizeObserver(fit).observe(stage);
+  fit();
+
+  (async () => {
+    try {
+      if (H.has('sample') || H.has('points')) {
+        if (!await loadSample(false)) return;
+        seedPoints();
+        if (H.has('before')) { before = true; $('t-before').classList.add('is-on'); $('t-before').setAttribute('aria-pressed', 'true'); }
+        buildList(); syncCount(); renderNow();
+        return;
+      }
+      // Restore whatever was here last time.
+      let s = null;
+      try { s = JSON.parse(localStorage.getItem(KEY)); } catch (e) {}
+      if (s && s.version === 1 && typeof s.svg === 'string') {
+        if (typeof s.passes === 'number') opts.passes = clamp(Math.round(s.passes), 1, 6);
+        if (typeof s.threshold === 'number') opts.threshold = clamp(s.threshold, 0.05, 0.95);
+        if (typeof s.base === 'number') opts.base = clamp(s.base, 0, 40);
+        syncGlobal();
+        const ok = await load(s.svg, s.name || 'artwork.svg', false);
+        if (ok && Array.isArray(s.points)) {
+          points = s.points.filter(p => p && isFinite(p.x) && isFinite(p.y) && isFinite(p.r) && isFinite(p.heat))
+            .map(p => ({ x: p.x, y: p.y, r: p.r, heat: p.heat }));
+          buildList(); syncCount(); renderNow();
+        }
+      }
+    } finally {
+      booted = true;
+      if (H.has('svgdump') && mask) showDump();
+    }
+  })();
+})();
+</script>
+<script src="/assets/circadian.js" defer></script>
+</body>
+</html>

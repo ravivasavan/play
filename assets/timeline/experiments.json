@@ -85,6 +85,20 @@
         "day.png",
         "europe.png"
       ]
+    },
+    {
+      "slug": "melt",
+      "name": "Melt",
+      "date": "20260903",
+      "description": "Drop an SVG, place a few points, and watch the letters go soft",
+      "status": "tinkering",
+      "tech": "vanilla JS, canvas blur, contour tracing",
+      "glyph": "droplet",
+      "shots": [
+        "night.png",
+        "day.png",
+        "before.png"
+      ]
     }
   ]
 }
