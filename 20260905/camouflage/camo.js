@@ -1,43 +1,23 @@
-/* Camouflage — seeded organic blotch generator.
-   Each Random click draws a new seed; the same seed always paints the same pattern. */
+/* Camouflage — layered organic blobs, one woodland palette.
+   Random draws a new seed; the same seed always paints the same pattern. */
 
 (function () {
   'use strict';
 
   const canvas = document.getElementById('camo');
   const seedEl = document.getElementById('seed');
-  const familyEl = document.getElementById('family');
   const btn = document.getElementById('p-random');
   if (!canvas || !btn) return;
 
   const ctx = canvas.getContext('2d', { alpha: false });
 
-  /* Curated families — classic field kits, not rainbow noise. */
-  const FAMILIES = [
-    {
-      name: 'Woodland',
-      colors: ['#2d3a1f', '#4a5c2a', '#6b7340', '#3e2f1c', '#8a7a4a']
-    },
-    {
-      name: 'Desert',
-      colors: ['#c4a574', '#a8895c', '#8b6f47', '#d4bc8e', '#6b5340']
-    },
-    {
-      name: 'Urban',
-      colors: ['#4a4a4c', '#6e6e70', '#2e2e30', '#9a9a9c', '#5c5a56']
-    },
-    {
-      name: 'Snow',
-      colors: ['#e8eef2', '#c5d0d8', '#9aabba', '#6f7f8c', '#dfe6eb']
-    },
-    {
-      name: 'Tropic',
-      colors: ['#1e3a28', '#2f5a38', '#4a7a42', '#1a2e1c', '#6b8f4a']
-    },
-    {
-      name: 'Flecktarn',
-      colors: ['#3d4a2a', '#5c6b3a', '#2a3220', '#7a6b48', '#4a3a28']
-    }
+  /* Muted woodland — olive, drab green, warm brown, sand, near-black. */
+  const PALETTE = [
+    '#3d4a28', /* olive */
+    '#5a6b38', /* drab green */
+    '#6b5430', /* warm brown */
+    '#c2b48a', /* sand */
+    '#1a1c14'  /* near-black */
   ];
 
   function mulberry32(a) {
@@ -61,68 +41,51 @@
   }
 
   function setHash(seed) {
-    const hex = seed.toString(16).padStart(8, '0');
-    history.replaceState(null, '', '#s=' + hex);
+    history.replaceState(null, '', '#s=' + seed.toString(16).padStart(8, '0'));
   }
 
-  function hexToRgb(hex) {
-    return [
-      parseInt(hex.slice(1, 3), 16),
-      parseInt(hex.slice(3, 5), 16),
-      parseInt(hex.slice(5, 7), 16)
-    ];
-  }
-
-  /* Irregular organic blob via polar vertices with radial noise. */
-  function drawBlob(c, cx, cy, r, rand, verts) {
-    const n = verts || (7 + Math.floor(rand() * 7));
-    c.beginPath();
+  /* Smooth irregular closed shape — polar vertices, quadratic midpoints. */
+  function blobPath(c, cx, cy, rx, ry, rand, n) {
+    const pts = [];
     for (let i = 0; i < n; i++) {
-      const a = (i / n) * Math.PI * 2;
-      const wobble = 0.55 + rand() * 0.7;
-      const stretch = 0.75 + rand() * 0.55;
-      const x = cx + Math.cos(a) * r * wobble * stretch;
-      const y = cy + Math.sin(a) * r * wobble * (2 - stretch);
-      if (i === 0) c.moveTo(x, y);
-      else c.lineTo(x, y);
+      const a = (i / n) * Math.PI * 2 + (rand() - 0.5) * 0.35;
+      const wr = 0.55 + rand() * 0.7;
+      const ws = 0.7 + rand() * 0.55;
+      pts.push({
+        x: cx + Math.cos(a) * rx * wr * ws,
+        y: cy + Math.sin(a) * ry * wr * (1.7 - ws)
+      });
+    }
+    c.beginPath();
+    const mid = (a, b) => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
+    let m0 = mid(pts[pts.length - 1], pts[0]);
+    c.moveTo(m0.x, m0.y);
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      const next = pts[(i + 1) % pts.length];
+      const m = mid(p, next);
+      c.quadraticCurveTo(p.x, p.y, m.x, m.y);
     }
     c.closePath();
-    c.fill();
   }
 
-  /* Soft Voronoi-ish field. Squircle metric → organic cell edges. */
-  function paintVoronoi(img, w, h, sites) {
-    const data = img.data;
-    for (let y = 0; y < h; y++) {
-      for (let x = 0; x < w; x++) {
-        let best = 0;
-        let bestD = Infinity;
-        for (let i = 0; i < sites.length; i++) {
-          const s = sites[i];
-          const dx = x - s.x;
-          const dy = y - s.y;
-          const d = Math.pow(Math.abs(dx), 1.7) + Math.pow(Math.abs(dy), 1.7);
-          if (d < bestD) { bestD = d; best = i; }
-        }
-        const rgb = sites[best].rgb;
-        const i4 = (y * w + x) * 4;
-        data[i4] = rgb[0];
-        data[i4 + 1] = rgb[1];
-        data[i4 + 2] = rgb[2];
-        data[i4 + 3] = 255;
-      }
+  function paintLayer(layerCtx, w, h, rand, color, count, sizeMin, sizeMax) {
+    layerCtx.clearRect(0, 0, w, h);
+    layerCtx.fillStyle = color;
+    for (let i = 0; i < count; i++) {
+      const cx = rand() * w;
+      const cy = rand() * h;
+      const s = sizeMin + rand() * (sizeMax - sizeMin);
+      const rx = s * (0.75 + rand() * 0.5);
+      const ry = s * (0.75 + rand() * 0.5);
+      const verts = 6 + Math.floor(rand() * 5);
+      blobPath(layerCtx, cx, cy, rx, ry, rand, verts);
+      layerCtx.fill();
     }
   }
 
   function generate(seed) {
     const rand = mulberry32(seed);
-    const family = FAMILIES[Math.floor(rand() * FAMILIES.length)];
-    const colors = family.colors.slice();
-    for (let i = colors.length - 1; i > 0; i--) {
-      const j = Math.floor(rand() * (i + 1));
-      const t = colors[i]; colors[i] = colors[j]; colors[j] = t;
-    }
-
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     const cssW = window.innerWidth;
     const cssH = window.innerHeight;
@@ -131,71 +94,68 @@
     canvas.style.width = cssW + 'px';
     canvas.style.height = cssH + 'px';
 
-    /* Working resolution — coarse enough for large blotches. */
-    const scale = 0.16 + rand() * 0.1;
-    const w = Math.max(48, Math.floor(canvas.width * scale));
-    const h = Math.max(48, Math.floor(canvas.height * scale));
+    const W = canvas.width;
+    const H = canvas.height;
+    const minSide = Math.min(W, H);
 
-    const density = 0.01 + rand() * 0.018;
-    const count = Math.max(24, Math.min(100, Math.floor(w * h * density)));
+    /* Base fill — darkest olive/near-black, seeded pick among the two darkest. */
+    const base = PALETTE[rand() < 0.55 ? 4 : 0];
+    ctx.fillStyle = base;
+    ctx.fillRect(0, 0, W, H);
 
-    const sites = [];
-    for (let i = 0; i < count; i++) {
-      sites.push({
-        x: rand() * w,
-        y: rand() * h,
-        rgb: hexToRgb(colors[Math.floor(rand() * colors.length)])
-      });
-    }
-    /* Clustered sites → large intentional blotches. */
-    const clusters = 3 + Math.floor(rand() * 4);
-    for (let c = 0; c < clusters; c++) {
-      const cx = rand() * w;
-      const cy = rand() * h;
-      const rgb = hexToRgb(colors[Math.floor(rand() * colors.length)]);
-      const n = 4 + Math.floor(rand() * 6);
-      const spread = Math.min(w, h) * (0.08 + rand() * 0.12);
-      for (let k = 0; k < n; k++) {
-        sites.push({
-          x: cx + (rand() - 0.5) * spread * 2,
-          y: cy + (rand() - 0.5) * spread * 2,
-          rgb: rgb
-        });
-      }
+    /* 3–4 layers of soft-edge organic shapes. */
+    const layerCount = 3 + Math.floor(rand() * 2);
+    const layer = document.createElement('canvas');
+    layer.width = W;
+    layer.height = H;
+    const lctx = layer.getContext('2d');
+
+    /* Shuffle a working order so layers don't always stack the same hues. */
+    const hues = PALETTE.slice();
+    for (let i = hues.length - 1; i > 0; i--) {
+      const j = Math.floor(rand() * (i + 1));
+      const t = hues[i]; hues[i] = hues[j]; hues[j] = t;
     }
 
-    const img = ctx.createImageData(w, h);
-    paintVoronoi(img, w, h, sites);
+    for (let L = 0; L < layerCount; L++) {
+      const count = 4 + Math.floor(rand() * 3); /* 4–6 shapes */
+      const color = hues[L % hues.length];
+      /* Larger shapes on lower layers, finer on top. */
+      const t = L / Math.max(1, layerCount - 1);
+      const sizeMax = minSide * (0.42 - t * 0.18);
+      const sizeMin = minSide * (0.14 - t * 0.05);
+      /* Soft edge — slightly different blur per layer, not decorative gradients. */
+      const blur = (10 + L * 6 + rand() * 8) * dpr;
 
-    const off = document.createElement('canvas');
-    off.width = w;
-    off.height = h;
-    off.getContext('2d').putImageData(img, 0, 0);
+      paintLayer(lctx, W, H, rand, color, count, sizeMin, sizeMax);
 
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(off, 0, 0, canvas.width, canvas.height);
-
-    /* Overlay organic blobs for printed-camo weight. */
-    ctx.imageSmoothingEnabled = true;
-    const blobCount = 8 + Math.floor(rand() * 14);
-    for (let i = 0; i < blobCount; i++) {
-      ctx.fillStyle = colors[Math.floor(rand() * colors.length)];
-      ctx.globalAlpha = 0.5 + rand() * 0.4;
-      const r = Math.min(canvas.width, canvas.height) * (0.04 + rand() * 0.14);
-      drawBlob(ctx, rand() * canvas.width, rand() * canvas.height, r, rand, 8 + Math.floor(rand() * 6));
+      ctx.save();
+      ctx.filter = 'blur(' + blur.toFixed(1) + 'px)';
+      ctx.globalAlpha = 0.78 + rand() * 0.18;
+      ctx.drawImage(layer, 0, 0);
+      ctx.restore();
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
     }
-    ctx.globalAlpha = 1;
 
-    /* Micro flecks — flecktarn detail without noise soup. */
-    const flecks = Math.floor(36 + rand() * 70);
-    for (let i = 0; i < flecks; i++) {
-      ctx.fillStyle = colors[Math.floor(rand() * colors.length)];
-      const r = (2 + rand() * 6) * dpr;
-      drawBlob(ctx, rand() * canvas.width, rand() * canvas.height, r, rand, 5 + Math.floor(rand() * 3));
+    /* One tighter top layer of smaller shapes for printed-camo weight. */
+    {
+      const count = 4 + Math.floor(rand() * 3);
+      const color = hues[Math.floor(rand() * hues.length)];
+      const sizeMax = minSide * (0.16 + rand() * 0.08);
+      const sizeMin = minSide * (0.05 + rand() * 0.04);
+      const blur = (4 + rand() * 5) * dpr;
+      paintLayer(lctx, W, H, rand, color, count, sizeMin, sizeMax);
+      ctx.save();
+      ctx.filter = 'blur(' + blur.toFixed(1) + 'px)';
+      ctx.globalAlpha = 0.85;
+      ctx.drawImage(layer, 0, 0);
+      ctx.restore();
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
     }
 
     if (seedEl) seedEl.textContent = seed.toString(16).padStart(8, '0');
-    if (familyEl) familyEl.textContent = family.name;
     setHash(seed);
   }
 
@@ -224,27 +184,6 @@
       try { localStorage.setItem('theme', next); } catch (e) {}
     });
   }
-
-  (function (tools) {
-    if (!tools) return;
-    let dragging = false, moved = false, sx = 0, sl = 0;
-    tools.addEventListener('pointerdown', e => {
-      if (matchMedia('(min-width: 901px)').matches) return;
-      dragging = true; moved = false; sx = e.clientX; sl = tools.scrollLeft;
-    });
-    addEventListener('pointermove', e => {
-      if (!dragging) return;
-      const dx = e.clientX - sx;
-      if (Math.abs(dx) > 6) { moved = true; tools.classList.add('dragging'); }
-      if (moved) tools.scrollLeft = sl - dx;
-    });
-    addEventListener('pointerup', () => {
-      dragging = false; tools.classList.remove('dragging');
-    });
-    tools.addEventListener('click', e => {
-      if (moved) { e.preventDefault(); e.stopPropagation(); moved = false; }
-    }, true);
-  })(document.querySelector('.tools'));
 
   generate(current);
 })();
