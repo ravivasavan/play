@@ -99,6 +99,16 @@
         "day.png",
         "before.png"
       ]
+    },
+    {
+      "slug": "camouflage",
+      "name": "Camouflage",
+      "date": "20260905",
+      "description": "Random camouflage — layered organic blotches, new seed each click",
+      "status": "tinkering",
+      "tech": "vanilla JS, canvas",
+      "glyph": "hexagon",
+      "shots": []
     }
   ]
 }
