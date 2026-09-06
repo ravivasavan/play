@@ -104,11 +104,15 @@
       "slug": "camouflage",
       "name": "Camouflage",
       "date": "20260905",
-      "description": "Camouflage — colourways, blotch or fleck, blur and layers dials; Random rolls a new seed.",
+      "description": "Pick a colourway and a pattern, then dial the blur and the layers",
       "status": "tinkering",
       "tech": "vanilla JS, canvas",
       "glyph": "hexagon",
-      "shots": []
+      "shots": [
+        "night.webp",
+        "day.webp",
+        "fleck.webp"
+      ]
     }
   ]
 }

@@ -5,6 +5,7 @@
   'use strict';
 
   const canvas = document.getElementById('camo');
+  const stage = document.getElementById('stage');
   const seedEl = document.getElementById('seed');
   const btn = document.getElementById('p-random');
   const paletteEl = document.getElementById('p-palette');
@@ -13,6 +14,7 @@
   const layersEl = document.getElementById('p-layers');
   const blurVal = document.getElementById('p-blur-val');
   const layersVal = document.getElementById('p-layers-val');
+  const summaryEl = document.getElementById('p-summary');
   if (!canvas || !btn) return;
 
   const ctx = canvas.getContext('2d', { alpha: false });
@@ -45,6 +47,7 @@
   };
 
   const PATTERNS = ['blotch', 'fleck'];
+  const PATTERN_LABELS = { blotch: 'Blotch', fleck: 'Fleck' };
 
   const state = {
     seed: 0,
@@ -118,6 +121,16 @@
     if (layersEl) layersEl.value = String(state.layers);
     if (blurVal) blurVal.textContent = state.blur.toFixed(1);
     if (layersVal) layersVal.textContent = String(state.layers);
+    /* Folded, the head is all you see of the sheet, so it says what the two
+       selects underneath are set to. */
+    if (summaryEl) {
+      const pal = COLOURWAYS[state.palette] || COLOURWAYS.woodland;
+      summaryEl.textContent = pal.label + ' · ' + (PATTERN_LABELS[state.pattern] || state.pattern);
+    }
+    /* A dial's filled half is painted from --dial-fill, which play.js only
+       updates on the user's own input events — a value set in code needs the
+       repaint asking for. */
+    if (window.play && window.play.dials) window.play.dials();
   }
 
   function blobPath(c, cx, cy, rx, ry, rand, n) {
@@ -178,12 +191,16 @@
   function generate() {
     const rand = mulberry32(state.seed);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    const cssW = window.innerWidth;
-    const cssH = window.innerHeight;
+    /* The stage is the viewport less the settings glass (and, folded, less the
+       collapsed sheet at the foot), so the pattern is measured off that box
+       rather than off the window. */
+    const box = stage ? stage.getBoundingClientRect() : null;
+    const cssW = Math.max(1, Math.round(box ? box.width : window.innerWidth));
+    const cssH = Math.max(1, Math.round(box ? box.height : window.innerHeight));
     canvas.width = Math.max(1, Math.floor(cssW * dpr));
     canvas.height = Math.max(1, Math.floor(cssH * dpr));
-    canvas.style.width = cssW + 'px';
-    canvas.style.height = cssH + 'px';
+    /* No inline width/height: the canvas is 100% of the stage in CSS, so it
+       keeps following the box even between resize repaints. */
 
     const W = canvas.width;
     const H = canvas.height;
@@ -278,22 +295,20 @@
   if (blurEl) blurEl.addEventListener('input', onDialChange);
   if (layersEl) layersEl.addEventListener('input', onDialChange);
 
+  /* The stage changes shape for reasons other than the window resizing — the
+     sheet swinging to the foot of the screen at 900 moves its right edge — so
+     the box itself is what's watched. */
   let resizeTimer = 0;
-  window.addEventListener('resize', () => {
+  let sized = false;
+  function onResize() {
+    /* A ResizeObserver reports the box once as soon as it is observed; the
+       first paint has already used it. */
+    if (!sized) { sized = true; return; }
     clearTimeout(resizeTimer);
     resizeTimer = setTimeout(() => generate(), 120);
-  });
-
-  const CYCLE = ['day', 'night', 'system', 'circadian'];
-  const themeBtn = document.querySelector('[data-theme-toggle]');
-  if (themeBtn) {
-    themeBtn.addEventListener('click', () => {
-      const html = document.documentElement;
-      const next = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
-      html.dataset.theme = next;
-      try { localStorage.setItem('theme', next); } catch (e) {}
-    });
   }
+  if (stage && window.ResizeObserver) new ResizeObserver(onResize).observe(stage);
+  else { sized = true; window.addEventListener('resize', onResize); }
 
   applyFromHash();
   syncControls();
