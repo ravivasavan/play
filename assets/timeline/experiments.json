@@ -9,9 +9,9 @@
       "tech": "vanilla JS, spring physics",
       "glyph": "magnet",
       "shots": [
-        "scattered.png",
-        "assembled.png",
-        "assembled-night.png"
+        "scattered.webp",
+        "assembled.webp",
+        "assembled-night.webp"
       ]
     },
     {
@@ -24,9 +24,9 @@
       "glyph": "frame",
       "url": "https://block.ravivasavan.com",
       "shots": [
-        "warm.png",
-        "teal.png",
-        "violet.png"
+        "warm.webp",
+        "teal.webp",
+        "violet.webp"
       ]
     },
     {
@@ -39,9 +39,9 @@
       "glyph": "chart",
       "url": "https://ravivasavan.github.io/arena-stats/",
       "shots": [
-        "overview.png",
-        "calendar.png",
-        "rhythm.png"
+        "overview.webp",
+        "calendar.webp",
+        "rhythm.webp"
       ]
     },
     {
@@ -53,9 +53,9 @@
       "tech": "vanilla JS, WST Level 1, Bedstead",
       "glyph": "tv",
       "shots": [
-        "headline.png",
-        "codes.png",
-        "mosaics.png"
+        "headline.webp",
+        "codes.webp",
+        "mosaics.webp"
       ]
     },
     {
@@ -67,9 +67,9 @@
       "tech": "React, DialKit, opentype.js, Clipper",
       "glyph": "flame",
       "shots": [
-        "grid.png",
-        "single.png",
-        "day.png"
+        "grid.webp",
+        "single.webp",
+        "day.webp"
       ]
     },
     {
@@ -81,9 +81,9 @@
       "tech": "vanilla JS, canvas, Natural Earth 1:50m",
       "glyph": "globe",
       "shots": [
-        "night.png",
-        "day.png",
-        "europe.png"
+        "night.webp",
+        "day.webp",
+        "europe.webp"
       ]
     },
     {
@@ -95,9 +95,9 @@
       "tech": "vanilla JS, canvas blur, contour tracing",
       "glyph": "droplet",
       "shots": [
-        "night.png",
-        "day.png",
-        "before.png"
+        "night.webp",
+        "day.webp",
+        "before.webp"
       ]
     }
   ]

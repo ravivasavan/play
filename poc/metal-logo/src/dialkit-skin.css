@@ -1,0 +1,271 @@
+/* metal — DialKit wearing the site's sheet.
+
+   The panel renders inline inside the shared .sheet (see index.html), so the
+   only thing left is to make its controls read as the family's: the same
+   translucent surface, the same 40px rows at 10px radius, the same hairline,
+   the same type, and the accent on anything live.
+
+   Everything here is prefixed `.sheet .dialkit-root` on purpose. DialKit's own
+   light/system theme blocks reach three classes deep, and only a longer,
+   later selector reliably outranks them — none of these need !important
+   because the panel is inline, which is the one mode DialKit doesn't
+   inline-style.
+
+   The exception is the preset dropdown. The select dropdown portals into the
+   nearest .dialkit-root (so it lands inside the sheet and every rule above
+   reaches it), but the preset one portals to document.body as a *sibling*
+   .dialkit-root carrying no data-theme — outside every `.sheet …` selector,
+   and falling through to DialKit's bare dark defaults. Those cases are
+   matched at document level by their own class instead. */
+
+/* ---------------------------------------------------------------- tokens -- */
+/* DialKit reads its own --dial-* set; point every one at the site's. The map
+   has to sit on .dialkit-root itself — DialKit declares these there, and an
+   inherited value always loses to a declaration on the element. The select
+   and preset dropdowns portal into .dialkit-root, so they inherit it too. */
+
+.sheet .dialkit-root[data-theme],
+.dialkit-root.dialkit-preset-dropdown,
+.dialkit-root.dialkit-shortcuts-dropdown {
+  --dial-surface: color-mix(in srgb, var(--fg) 6%, transparent);
+  --dial-surface-hover: color-mix(in srgb, var(--fg) 12%, transparent);
+  --dial-surface-active: color-mix(in srgb, var(--fg) 16%, transparent);
+  --dial-surface-subtle: var(--separator);
+
+  /* 82% of the ink, not --muted's 55%: these labels sit on a tinted sheet
+     over the experiment's own canvas, and 55% is the value that measured
+     under 3:1 there. Same floor .field__label uses in play.css — written out
+     rather than taken from --muted because the portaled dropdowns hang off
+     <body>, outside the .sheet that redefines it. */
+  --dial-text-root: var(--ink);
+  --dial-text-section: color-mix(in srgb, var(--fg) 82%, transparent);
+  --dial-text-label: color-mix(in srgb, var(--fg) 82%, transparent);
+  --dial-text-focus: var(--ink);
+  --dial-text-primary: var(--ink);
+  --dial-text-secondary: color-mix(in srgb, var(--fg) 82%, transparent);
+  --dial-text-tertiary: color-mix(in srgb, var(--fg) 40%, transparent);
+
+  --dial-border: color-mix(in srgb, var(--fg) 10%, transparent);
+  --dial-border-hover: color-mix(in srgb, var(--fg) 20%, transparent);
+
+  --dial-glass-bg: var(--glass-bg);
+  --dial-dropdown-bg: var(--glass-bg);
+  --dial-radius: 10px;
+  --dial-row-height: 40px;
+  --dial-shadow: none;
+  --dial-shadow-collapsed: none;
+  --dial-shadow-dropdown: var(--glass-shadow);
+
+  font-family: "Labil Grotesk", system-ui, sans-serif;
+  -webkit-font-smoothing: inherit;
+}
+
+/* ------------------------------------------------------------- structure -- */
+/* The sheet is the glass; the panel inside it is just a stack of rows. */
+
+.sheet .dialkit-root,
+.sheet .dialkit-root .dialkit-panel,
+.sheet .dialkit-root .dialkit-panel-wrapper { max-height: none; }
+
+.sheet .dialkit-root .dialkit-panel-inner {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  padding: 0;
+  max-height: none;
+  overflow: visible;
+}
+
+/* The sheet's head already names the panel, so DialKit's title row goes; the
+   toolbar under it (presets, copy) stays and reads as the first row. */
+.sheet .dialkit-root .dialkit-panel-header {
+  padding: 0;
+  margin: 0;
+  border-bottom: 0;
+  cursor: default;
+}
+.sheet .dialkit-root .dialkit-panel-header .dialkit-folder-header-top { display: none; }
+.sheet .dialkit-root .dialkit-panel-toolbar { margin: 0 0 6px; }
+.sheet .dialkit-root .dialkit-folder-inner { gap: 8px; padding-bottom: 8px; }
+
+/* A folder title is a section label, same as .sheet__section. */
+.sheet .dialkit-root .dialkit-folder-title {
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: color-mix(in srgb, var(--fg) 82%, transparent);
+}
+.sheet .dialkit-root .dialkit-folder:not(.dialkit-folder-root) > .dialkit-folder-header {
+  height: 36px;
+}
+
+/* ---------------------------------------------------------------- rows -- */
+/* One shape for every control: 40px, 10px radius, the .input surface and its
+   hairline. */
+
+.sheet .dialkit-root .dialkit-toggle,
+.sheet .dialkit-root .dialkit-text-control,
+.sheet .dialkit-root .dialkit-select-trigger,
+.sheet .dialkit-root .dialkit-labeled-control,
+.sheet .dialkit-root .dialkit-preset-trigger,
+.sheet .dialkit-root .dialkit-toolbar-add,
+.sheet .dialkit-root .dialkit-toolbar-copy,
+.sheet .dialkit-root .dialkit-shortcuts-trigger,
+.sheet .dialkit-root .dialkit-button,
+.sheet .dialkit-root .dialkit-action-button {
+  box-shadow: inset 0 0 0 1px var(--dial-border);
+}
+
+.sheet .dialkit-root .dialkit-toggle,
+.sheet .dialkit-root .dialkit-button,
+.sheet .dialkit-root .dialkit-action-button {
+  height: var(--dial-row-height);
+  padding: 0 12px;
+}
+.sheet .dialkit-root .dialkit-button,
+.sheet .dialkit-root .dialkit-action-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink);
+}
+
+/* Labels and figures: the site's face, tabular where a number moves. */
+.sheet .dialkit-root .dialkit-slider-label,
+.sheet .dialkit-root .dialkit-toggle-label,
+.sheet .dialkit-root .dialkit-text-label,
+.sheet .dialkit-root .dialkit-select-label,
+.sheet .dialkit-root .dialkit-labeled-control-label { font-size: 13px; }
+
+.sheet .dialkit-root .dialkit-slider-value,
+.sheet .dialkit-root .dialkit-slider-input,
+.sheet .dialkit-root .dialkit-select-value,
+.sheet .dialkit-root .dialkit-text-input {
+  font-family: inherit;
+  font-variant-numeric: tabular-nums;
+}
+.sheet .dialkit-root .dialkit-slider-value,
+.sheet .dialkit-root .dialkit-select-value { color: var(--ink); }
+
+/* --- slider: the shared .dial --- */
+/* DialKit's slider is one 40px tinted row with the label and the value inside
+   the bar and the whole left portion filled — a different control idiom from
+   every other experiment, and the label sitting on the fill measured 2.96:1.
+   Rebuilt here as .dial: the label and its tabular value on a line of their
+   own, a 2px hairline track under them, the accent progress along it and a
+   16px round knob at the head of the progress.
+
+   Only the geometry is CSS. The fill's width and the whole track's rubber
+   band are motion values written inline, and the drag lives on the track's
+   own pointer handlers, so nothing below moves a listener or a measurement:
+   the knob rides the fill's right edge as a pseudo-element, which is exactly
+   where the value is. */
+
+.sheet .dialkit-root .dialkit-slider-wrapper { height: 44px; }
+
+.sheet .dialkit-root .dialkit-slider {
+  background: none;
+  border-radius: 0;
+  overflow: visible;               /* the knob hangs below the track */
+}
+/* The track. ::before, not ::after, so the accent fill paints over it. */
+.sheet .dialkit-root .dialkit-slider::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7px;
+  height: 2px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--fg) 18%, transparent);
+}
+
+/* Label and value move out of the bar and onto the line above it. */
+.sheet .dialkit-root .dialkit-slider-label,
+.sheet .dialkit-root .dialkit-slider-value,
+.sheet .dialkit-root .dialkit-slider-input {
+  top: 0;
+  transform: none;
+}
+.sheet .dialkit-root .dialkit-slider-label { left: 0; }
+.sheet .dialkit-root .dialkit-slider-value,
+.sheet .dialkit-root .dialkit-slider-input { right: 0; }
+
+/* .dial has no hashmarks; neither does this. */
+.sheet .dialkit-root .dialkit-slider-hashmarks { display: none; }
+
+.sheet .dialkit-root .dialkit-slider-fill {
+  top: auto;
+  bottom: 7px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--accent);
+}
+.sheet .dialkit-root .dialkit-slider-active .dialkit-slider-fill {
+  background: var(--accent);
+}
+/* The knob, riding the head of the fill — the same 16px accent circle on a
+   2px ring of page that .dial's thumb draws. */
+.sheet .dialkit-root .dialkit-slider-fill::after {
+  content: '';
+  position: absolute;
+  right: -8px;
+  bottom: -7px;
+  width: 16px;
+  height: 16px;
+  border-radius: 16px;
+  background: var(--accent);
+  box-shadow: 0 0 0 2px var(--bg);
+}
+/* DialKit's own handle is a playhead that fades in only while dragging; the
+   knob is always there instead. */
+.sheet .dialkit-root .dialkit-slider-handle { display: none; }
+
+.sheet .dialkit-root .dialkit-slider-active .dialkit-slider-value { color: var(--ink); }
+
+/* --- toggle: the shared .switch --- */
+.sheet .dialkit-root .dialkit-toggle-track {
+  background: color-mix(in srgb, var(--fg) 14%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 8%, transparent);
+}
+.sheet .dialkit-root .dialkit-toggle[data-checked="true"] .dialkit-toggle-track {
+  background: var(--accent);
+}
+.sheet .dialkit-root .dialkit-toggle-thumb {
+  background: var(--bg);
+  box-shadow: 0 1px 2px rgba(13, 27, 30, 0.25);
+}
+
+/* --- dropdowns --- */
+/* A popover that opens *on* the glass has to be all but opaque: a second 62%
+   layer just shows the rows underneath it straight through. */
+.sheet .dialkit-root .dialkit-select-dropdown,
+.dialkit-root.dialkit-preset-dropdown,
+.dialkit-root.dialkit-shortcuts-dropdown {
+  background: color-mix(in srgb, var(--bg) 97%, transparent);
+  backdrop-filter: var(--glass-blur);
+  -webkit-backdrop-filter: var(--glass-blur);
+  border: 0;
+  border-radius: 14px;
+  box-shadow: var(--glass-edge), var(--glass-specular), var(--glass-shadow);
+}
+.sheet .dialkit-root .dialkit-select-option[data-selected="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+}
+
+/* ---------------------------------------------------------- preferences -- */
+
+@media (prefers-reduced-transparency: reduce) {
+  .sheet .dialkit-root .dialkit-select-dropdown,
+  .dialkit-root.dialkit-preset-dropdown,
+  .dialkit-root.dialkit-shortcuts-dropdown {
+    background: var(--bg);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}

@@ -2,13 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { useDialKitController } from 'dialkit'
 import { extractLetterform, growTendrils, mirrorBranches, makeRng } from './generator.js'
 import {
-  loadFonts,
+  loadFont,
   FONT_NAMES,
   textGeometry,
   imageGeometry,
-  branchOutline,
-  inkVector,
-  makeArt,
   blit,
   svgString,
   exportSvg,
@@ -158,7 +155,7 @@ export default function App() {
   const [sel, setSel] = useState(4)
   const [mode, setMode] = useState('grid') // 'grid' | 'single'
   const [svg, setSvg] = useState(null)
-  const [fontsReady, setFontsReady] = useState(false)
+  const [loadedFont, setLoadedFont] = useState(null)
   const [dragging, setDragging] = useState(false)
   const [svgDump, setSvgDump] = useState(null)
 
@@ -239,13 +236,21 @@ export default function App() {
     if (selArt && squintRef.current) blit(squintRef.current, selArt, colors)
   }
 
+  // The world is full-bleed and pans under the glass — but the middle of the
+  // *visible* page is beside the sheet, not behind it.
+  function sheetInset() {
+    if (window.matchMedia('(max-width: 900px)').matches) return 0
+    const v = getComputedStyle(document.documentElement).getPropertyValue('--sheet-inset')
+    return parseFloat(v) || 392
+  }
+
   function centerView(forMode) {
     const vp = viewportRef.current
     if (!vp) return
     const rect = vp.getBoundingClientRect()
     const contentH = forMode === 'single' ? SINGLE_H : GRID_H
     view.current = {
-      x: (rect.width - WORLD_W) / 2,
+      x: (rect.width - sheetInset() - WORLD_W) / 2,
       y: Math.max(200, (rect.height - contentH) / 2 + 60),
       z: 1,
     }
@@ -298,9 +303,9 @@ export default function App() {
     syncPanel(last.brood[last.sel])
   }
 
-  function doExport() {
+  async function doExport() {
     const pv = pRef.current
-    const art = buildArt(broodRef.current[selRef.current])
+    const art = await buildArt(broodRef.current[selRef.current])
     if (!art) return
     // transparent export is the deliverable: a solid dark mark on nothing.
     // With a background, export what you see — the current theme's colours.
@@ -310,10 +315,24 @@ export default function App() {
     exportSvg(art, colors, pv.transparentBg, svgRef.current ? svgRef.current.name : pv.text)
   }
 
-  // fonts + dev hooks + drag-and-drop + chrome pills + theme observer
+  // Only the face on screen is fetched and parsed; picking another gets it
+  // then. This is derived rather than a second piece of state on purpose: the
+  // moment p.font changes it reads false in the very same render, so the
+  // draw loop below can't slip a pass through in the outgoing face and then
+  // mark those cells fresh.
+  const fontsReady = loadedFont === p.font
   useEffect(() => {
     let alive = true
-    loadFonts().then(() => alive && setFontsReady(true)).catch((e) => console.error('fonts', e))
+    const want = p.font
+    loadFont(want)
+      .then(() => alive && setLoadedFont(want))
+      .catch((e) => console.error('fonts', e))
+    return () => { alive = false }
+  }, [p.font])
+
+  // dev hooks + drag-and-drop + chrome pills + theme observer
+  useEffect(() => {
+    let alive = true
 
     colorsRef.current = readThemeColors()
 
@@ -456,6 +475,12 @@ export default function App() {
     }
   }, [])
 
+  // the sheet's head reads back what the tools row is looking at
+  useEffect(() => {
+    const summary = document.getElementById('p-summary')
+    if (summary) summary.textContent = `${mode === 'grid' ? 'Grid' : 'Single'} · ${sel + 1}/9`
+  }, [mode, sel])
+
   // mode switch: recentre, sync the chrome pill, re-blit once layout settles
   useEffect(() => {
     const pill = document.getElementById('p-view')
@@ -524,10 +549,15 @@ export default function App() {
     return lf
   }
 
-  function buildArt(genome) {
+  // Async because Clipper arrives with it: every cell on screen is built in a
+  // worker, so the main thread only ever needs art.js for Export, the
+  // no-worker fallback and #svgdump — three things nobody is waiting on at
+  // load. import() is cached, so only the first call pays for the fetch.
+  async function buildArt(genome) {
     const geom = getGeometry(genome)
     if (!geom || !geom.mask.coverage) return null
     const lf = getLetterform(geom.mask)
+    const { branchOutline, inkVector, makeArt } = await import('./art.js')
     const rand = makeRng(genome.seed * 2654435761)
     let branches = growTendrils(lf, geom.mask, { ...genome.growth }, rand)
     if (genome.symmetry) {
@@ -542,7 +572,131 @@ export default function App() {
     return makeArt(polys)
   }
 
-  // progressive render — one cell per frame, only stale cells
+  // progressive render — only stale cells, and off the main thread
+  //
+  // Each cell is ~1.7s of polygon clipping; nine in a row used to hold the
+  // main thread for fifteen seconds after load, which is why a tap on the
+  // settings sheet could sit there for two of them. A small pool of workers
+  // does the clipping now and each cell is blitted as it lands, so the page
+  // answers a tap in a frame while the grid fills in behind it. The mask
+  // still comes from here — it needs a canvas — and it is the cheap half.
+  const poolRef = useRef(null)
+  const jobRef = useRef({ token: -1, brood: null, items: [] })
+  const onCell = useRef(() => {})
+
+  function paintCell(idx, key, art) {
+    const canvas = cellRefs.current[idx]
+    if (!art || !canvas) return
+    artRefs.current[idx] = art
+    blit(canvas, art, colorsRef.current, blitRatio())
+    lastCellKey.current[idx] = key
+    if (idx === selRef.current) {
+      if (singleRef.current) blit(singleRef.current, art, colorsRef.current, blitRatio())
+      if (squintRef.current) blit(squintRef.current, art, colorsRef.current)
+    }
+  }
+
+  // Hand one *idle* worker the next stale cell, mask and all. Cells can carry
+  // different geometry (dislocation reseeds the mask per variant), so the
+  // mask travels with the job rather than being shared once.
+  //
+  // The busy flag is load-bearing. A worker can't be interrupted mid-cell, and
+  // a dial drag fires a render a frame — post to a busy worker and fourteen
+  // superseded cells queue in front of the only one still wanted, which then
+  // lands twenty seconds later. Skipping busy workers leaves the newest job
+  // sitting in jobRef instead, and whichever worker reports back first takes
+  // it: at most one stale cell per worker is ever in flight.
+  function dispatchCell(w) {
+    if (w.busy) return
+    const job = jobRef.current
+    while (job.items.length) {
+      const [idx, key] = job.items.shift()
+      const genome = job.brood[idx]
+      const geom = getGeometry(genome)
+      if (!geom || !geom.mask.coverage) continue
+      w.postMessage({
+        token: job.token, idx, key, genome,
+        polys: geom.polys,
+        lf: getLetterform(geom.mask),
+        // the canvas on the mask can't cross a postMessage, and nothing
+        // downstream of here reads it
+        mask: { alpha: geom.mask.alpha, w: geom.mask.w, h: geom.mask.h, bbox: geom.mask.bbox },
+      })
+      // after the post, so a structured-clone throw can't wedge the worker
+      w.busy = true
+      return
+    }
+  }
+
+  // The original one-cell-per-frame loop, kept for anything that can't run a
+  // module worker — and as the landing place if one fails to boot.
+  function drawOnMainThread(job) {
+    let raf = requestAnimationFrame(async function step() {
+      if (renderToken.current !== job.token || !job.items.length) return
+      const [idx, key] = job.items.shift()
+      const art = await buildArt(job.brood[idx])
+      if (renderToken.current !== job.token) return
+      paintCell(idx, key, art)
+      raf = requestAnimationFrame(step)
+    })
+    return () => cancelAnimationFrame(raf)
+  }
+
+  // one core left over for the page itself
+  const POOL_MAX = Math.max(1, Math.min(3, (navigator.hardwareConcurrency || 4) - 1))
+
+  function spawn(n) {
+    const made = []
+    try {
+      for (let i = 0; i < n; i++) {
+        const w = new Worker(new URL('./render.worker.js', import.meta.url), { type: 'module' })
+        w.onmessage = (e) => onCell.current(w, e.data)
+        w.onerror = () => onPoolFailure()
+        made.push(w)
+      }
+    } catch (e) {
+      // no module workers here — the caller draws on the main thread instead
+    }
+    return made
+  }
+
+  // The pool starts as one worker and grows once that one has answered: three
+  // of them started together would each fetch the worker bundle before any
+  // copy of it reached the cache.
+  function pool() {
+    if (!poolRef.current) poolRef.current = spawn(1)
+    return poolRef.current
+  }
+
+  function growPool() {
+    const list = poolRef.current
+    if (!list || !list.length || list.length >= POOL_MAX) return
+    const extra = spawn(POOL_MAX - list.length)
+    list.push(...extra)
+    extra.forEach(dispatchCell)
+  }
+
+  function onPoolFailure() {
+    if (!poolRef.current || !poolRef.current.length) return
+    poolRef.current.forEach((w) => w.terminate())
+    poolRef.current = []
+    drawOnMainThread(jobRef.current)
+  }
+
+  onCell.current = (w, msg) => {
+    w.busy = false
+    if (msg.token === renderToken.current && msg.art) {
+      paintCell(msg.idx, msg.key, { ...msg.art, path2d: new Path2D(msg.art.pathString) })
+    }
+    dispatchCell(w)
+    growPool()
+  }
+
+  useEffect(() => () => {
+    (poolRef.current || []).forEach((w) => w.terminate())
+    poolRef.current = null
+  }, [])
+
   const globalKey = JSON.stringify({
     text: p.text, font: p.font, size: p.size,
     svg: svg ? svg.stamp : null, fontsReady,
@@ -550,31 +704,21 @@ export default function App() {
   useEffect(() => {
     if (!fontsReady) return
     const token = ++renderToken.current
-    const queue = []
+    const items = []
     for (let i = 0; i < 9; i++) {
       const key = globalKey + JSON.stringify(brood[i])
-      if (lastCellKey.current[i] !== key) queue.push([i, key])
+      if (lastCellKey.current[i] !== key) items.push([i, key])
     }
-    function step() {
-      if (renderToken.current !== token || !queue.length) return
-      const [idx, key] = queue.shift()
-      const canvas = cellRefs.current[idx]
-      if (canvas) {
-        const art = buildArt(brood[idx])
-        if (art) {
-          artRefs.current[idx] = art
-          blit(canvas, art, colorsRef.current, blitRatio())
-          lastCellKey.current[idx] = key
-          if (idx === selRef.current) {
-            if (singleRef.current) blit(singleRef.current, art, colorsRef.current, blitRatio())
-            if (squintRef.current) blit(squintRef.current, art, colorsRef.current)
-          }
-        }
-      }
-      requestAnimationFrame(step)
-    }
-    const raf = requestAnimationFrame(step)
-    return () => cancelAnimationFrame(raf)
+    if (!items.length) return
+    // the cell being looked at is the one worth having first
+    const s = selRef.current
+    items.sort((a, b) => (b[0] === s) - (a[0] === s))
+
+    const job = { token, brood, items }
+    jobRef.current = job
+    const list = pool()
+    if (!list.length) return drawOnMainThread(job)
+    list.forEach(dispatchCell)
   }, [brood, globalKey])
 
   // selection change: refresh the single view + patch test
@@ -588,8 +732,8 @@ export default function App() {
   // dev-only: #svgdump overlays the traced vector of the selected variant
   useEffect(() => {
     if (!location.hash.includes('svgdump') || !fontsReady) return
-    const raf = requestAnimationFrame(() => {
-      const art = buildArt(brood[sel])
+    const raf = requestAnimationFrame(async () => {
+      const art = await buildArt(brood[sel])
       if (!art) return
       const s = svgString(art, { fg: '#0a0a0a', bg: '#f2f0ec' }, p.transparentBg)
       document.title = `svgdump ${s.length}B ${(s.match(/M/g) || []).length} loops`
@@ -630,12 +774,12 @@ export default function App() {
           </div>
         </div>
       </div>
-      <span style={styles.hint}>
+      <span className="metal-hint">
         drag pans · pinch / ⌘+wheel zooms · click selects · double-click spawns 9
       </span>
-      <div style={styles.squintWrap}>
-        <span style={styles.squintLabel}>patch test</span>
-        <canvas ref={squintRef} style={styles.squint} />
+      <div className="metal-squint">
+        <span className="metal-squint__label">patch test</span>
+        <canvas ref={squintRef} className="metal-squint__canvas" />
       </div>
       {dragging && <div style={styles.dropVeil}>drop .svg</div>}
       {svgDump && <div style={styles.svgDump} dangerouslySetInnerHTML={{ __html: svgDump }} />}
@@ -682,33 +826,6 @@ const styles = {
     width: '100%',
     display: 'block',
     aspectRatio: '1400 / 800',
-  },
-  hint: {
-    position: 'fixed',
-    left: 20,
-    bottom: 16,
-    color: 'var(--muted)',
-    fontSize: 13,
-    letterSpacing: '0.04em',
-    pointerEvents: 'none',
-  },
-  squintWrap: {
-    position: 'fixed',
-    right: 20,
-    bottom: 14,
-    display: 'flex',
-    alignItems: 'center',
-    gap: 8,
-  },
-  squintLabel: {
-    color: 'var(--muted)',
-    fontSize: 11,
-    letterSpacing: '0.08em',
-  },
-  squint: {
-    width: 110,
-    aspectRatio: '1400 / 800',
-    border: '1px solid var(--separator)',
   },
   dropVeil: {
     position: 'fixed',

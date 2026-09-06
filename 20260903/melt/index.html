@@ -2,176 +2,62 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>melt — play</title>
   <meta name="description" content="Drop an SVG, place melt points on it, and watch the ink bleed — then export the goo as a traced vector.">
+  <link rel="canonical" href="https://play.ravivasavan.com/20260903/melt/">
+  <meta property="og:title" content="melt — play">
+  <meta property="og:description" content="Drop an SVG, place melt points on it, and watch the ink bleed — then export the goo as a traced vector.">
+  <meta property="og:url" content="https://play.ravivasavan.com/20260903/melt/">
+  <meta property="og:type" content="website">
+  <meta name="twitter:card" content="summary">
+  <meta name="theme-color" id="theme-color" content="#fff5f5">
   <script>
-    /* Set data-theme before paint to avoid FOUC. Cycles: day → night → system
-       → circadian. Circadian colours are computed by circadian.js (deferred),
-       so re-apply its last cached tokens here to keep first paint correct. */
+    /* Set data-theme and the address-bar colour before paint, to avoid a
+       flash. Cycles: day → night → system → circadian. Circadian colours are
+       computed by circadian.js, which play.js only loads when it's wanted, so
+       its last cached tokens are re-applied here to keep first paint right. */
     (function () {
       var t = null;
       try { t = localStorage.getItem('theme'); } catch (e) {}
       if (t !== 'day' && t !== 'night' && t !== 'system' && t !== 'circadian') t = 'system';
       document.documentElement.dataset.theme = t;
-      if (t === 'circadian') {
+      var c = '#fff5f5';
+      if (t === 'night') c = '#0d1b1e';
+      else if (t === 'system' && matchMedia('(prefers-color-scheme: dark)').matches) c = '#0d1b1e';
+      else if (t === 'circadian') {
         try {
           var cache = JSON.parse(localStorage.getItem('circadian-cache'));
           for (var k in cache) document.documentElement.style.setProperty(k, cache[k]);
+          if (cache && cache['--bg']) c = cache['--bg'];
         } catch (e) {}
       }
+      var m = document.getElementById('theme-color');
+      if (m) m.setAttribute('content', c);
     })();
   </script>
+  <link rel="icon" href="/assets/img/favicon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="/assets/img/apple-touch-icon.png">
+  <link rel="preload" href="/assets/fonts/LabilGrotesk-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="/assets/play.css">
   <style>
-    @font-face {
-      font-family: "Labil Grotesk";
-      src: url("/assets/fonts/LabilGrotesk-Regular.woff2") format("woff2"),
-           url("/assets/fonts/LabilGrotesk-Regular.woff") format("woff");
-      font-weight: 400;
-      font-style: normal;
-      font-display: swap;
-    }
+    /* Melt's own half of the page. The type, the tokens, the two chrome rows
+       and every control in the sheet come from play.css. */
 
-    :root {
-      /* Brand colours — inherited from ravivasavan.com */
-      --night: #0d1b1e;
-      --orange: #ff795c;
-      --white: #fff5f5;
-
-      --bg: var(--white);
-      --ink: var(--night);
-      --muted: color-mix(in srgb, var(--night) 55%, var(--white));
-      --field: color-mix(in srgb, var(--night) 4%, transparent);
-      --pill-bg: rgba(255, 245, 245, 0.2);
-      --pill-filter: blur(10px) saturate(180%);
-      --separator: color-mix(in srgb, var(--night) 5%, transparent);
-    }
-    [data-theme="night"] {
-      --bg: var(--night);
-      --ink: var(--white);
-      --muted: color-mix(in srgb, var(--white) 55%, var(--night));
-      --field: color-mix(in srgb, var(--white) 6%, transparent);
-      --pill-bg: rgba(13, 27, 30, 0.5);
-      --separator: color-mix(in srgb, var(--white) 8%, transparent);
-    }
-    @media (prefers-color-scheme: dark) {
-      [data-theme="system"] {
-        --bg: var(--night);
-        --ink: var(--white);
-        --muted: color-mix(in srgb, var(--white) 55%, var(--night));
-        --field: color-mix(in srgb, var(--white) 6%, transparent);
-        --pill-bg: rgba(13, 27, 30, 0.5);
-        --separator: color-mix(in srgb, var(--white) 8%, transparent);
-      }
-    }
-
-    * { box-sizing: border-box; margin: 0; }
-    [hidden] { display: none !important; }
     html, body { height: 100%; overflow: hidden; }
-    html { scrollbar-gutter: stable; }
-    body {
-      background: var(--bg);
-      color: var(--ink);
-      font-family: "Labil Grotesk", system-ui, sans-serif;
-      font-size: 16px;
-      line-height: 1.3;
-      transition: background-color 240ms ease, color 240ms ease;
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) var(--panel-w);
-      -webkit-font-smoothing: antialiased;
-    }
-
-    /* ---- chrome: two levels, same as the family ---- */
-    :root {
-      --chrome-top: 40px;
-      --chrome-rule: 120px;
-      --chrome-tools: 136px;
-      --chrome-pad: 40px;
-      --panel-w: 360px;
-    }
-    .chrome {
-      position: fixed; top: var(--chrome-top); left: 0; right: 0; z-index: 500;
-      display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
-      padding: 0 var(--chrome-pad); pointer-events: none;
-    }
-    .chrome > * { pointer-events: auto; }
-    .chrome__back  { justify-self: start; }
-    .chrome__id    { justify-self: center; }
-    .chrome__theme { justify-self: end; }
-    .chrome-rule {
-      position: fixed; top: var(--chrome-rule); left: 0; right: 0;
-      border-top: 1px solid var(--separator); z-index: 499; pointer-events: none;
-    }
-    .tools {
-      position: fixed; top: var(--chrome-tools); left: var(--chrome-pad);
-      right: calc(var(--panel-w) + var(--chrome-pad)); z-index: 500;
-      display: flex; align-items: center; justify-content: flex-end; gap: 8px;
-    }
-    .tool-pill {
-      display: inline-flex; align-items: center; gap: 8px; height: 44px; padding: 0 14px 0 12px;
-      border: 1px solid color-mix(in srgb, var(--ink) 14%, transparent); border-radius: 22px;
-      background: transparent; color: var(--ink); font: inherit; font-size: 14px; line-height: 1;
-      cursor: pointer; transition: background-color 200ms ease, border-color 200ms ease, color 200ms ease;
-    }
-    .tool-pill:hover, .tool-pill:focus-visible {
-      background: var(--separator); border-color: color-mix(in srgb, var(--ink) 28%, transparent);
-    }
-    .tool-pill:active { transform: scale(0.96); }
-    .tool-pill__icon { display: grid; place-items: center; width: 16px; height: 16px; flex-shrink: 0; }
-    .tool-pill__icon svg { width: 16px; height: 16px; }
-    .tool-pill--danger:hover { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, transparent); }
-    .tool-pill.is-on { color: var(--orange); border-color: color-mix(in srgb, var(--orange) 45%, transparent); }
-    .tool-pill[disabled] { opacity: 0.4; cursor: default; }
-    .tool-pill[disabled]:hover { background: transparent; border-color: color-mix(in srgb, var(--ink) 14%, transparent); color: var(--ink); }
-
-    .header-pill {
-      background: var(--pill-bg); backdrop-filter: var(--pill-filter); -webkit-backdrop-filter: var(--pill-filter);
-      border-radius: 32px; padding: 8px; box-shadow: inset 0 0 0 1px var(--separator); margin: 0;
-    }
-    .header-pill__inner { display: flex; align-items: center; gap: 12px; }
-    .header-pill__avatar { width: 48px; height: 48px; border-radius: 48px; background: var(--separator); overflow: hidden; flex-shrink: 0; }
-    .header-pill__avatar svg { width: 100%; height: 100%; display: block; }
-    .header-pill__label { display: flex; flex-direction: column; gap: 4px; padding-right: 12px; }
-    .header-pill__name { font-size: 16px; line-height: 1.3; }
-    .header-pill__role { font-size: 16px; line-height: 1.3; opacity: 0.6; }
-
-    .icon-pill {
-      background: var(--pill-bg); backdrop-filter: var(--pill-filter); -webkit-backdrop-filter: var(--pill-filter);
-      border: 0; border-radius: 32px; padding: 8px; cursor: pointer; color: var(--ink);
-      box-shadow: inset 0 0 0 1px var(--separator); display: inline-flex; font: inherit;
-      position: relative; overflow: hidden; text-decoration: none;
-    }
-    .icon-pill::before {
-      content: ''; position: absolute; top: 8px; left: 8px; width: 48px; height: 48px;
-      background: var(--separator); border-radius: 48px; z-index: 0;
-      transition: top 240ms cubic-bezier(0.4,0,0.2,1), left 240ms cubic-bezier(0.4,0,0.2,1),
-                  width 240ms cubic-bezier(0.4,0,0.2,1), height 240ms cubic-bezier(0.4,0,0.2,1),
-                  border-radius 240ms cubic-bezier(0.4,0,0.2,1);
-    }
-    .icon-pill:hover::before, .icon-pill:focus-visible::before { top: 3.2px; left: 3.2px; width: 57.6px; height: 57.6px; border-radius: 38.4px; }
-    .icon-pill__icon { width: 48px; height: 48px; border-radius: 48px; display: grid; place-items: center; flex-shrink: 0; position: relative; z-index: 1; }
-    .icon-pill__icon svg { grid-area: 1 / 1; width: 16px; height: 16px; transition: opacity 240ms ease-out, transform 240ms cubic-bezier(0.4,0,0.2,1); }
-    .icon-pill--theme .icon-pill__icon svg { opacity: 0; transform: rotate(-90deg) scale(0.85); }
-    [data-theme="day"]       .icon-pill--theme svg[data-tstate="day"],
-    [data-theme="night"]     .icon-pill--theme svg[data-tstate="night"],
-    [data-theme="system"]    .icon-pill--theme svg[data-tstate="system"],
-    [data-theme="circadian"] .icon-pill--theme svg[data-tstate="circadian"] { opacity: 1; transform: rotate(0deg) scale(1); }
-    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="day"],
-    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="night"],
-    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="system"],
-    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="circadian"] { opacity: 0; transform: rotate(90deg) scale(0.85); }
-    [data-theme="day"]       .icon-pill--theme:hover svg[data-tstate="night"],
-    [data-theme="night"]     .icon-pill--theme:hover svg[data-tstate="system"],
-    [data-theme="system"]    .icon-pill--theme:hover svg[data-tstate="circadian"],
-    [data-theme="circadian"] .icon-pill--theme:hover svg[data-tstate="day"] { opacity: 1; transform: rotate(0deg) scale(1); }
 
     /* ---- the stage ---- */
-    #stage { position: relative; overflow: hidden; touch-action: none; }
+    /* Everything the sheet does not cover, so the melt never slides under the
+       glass: the viewport less the sheet and its two gaps. */
+    #stage {
+      position: fixed; top: 0; left: 0; bottom: 0; right: var(--sheet-inset);
+      overflow: hidden; touch-action: none;
+    }
     #ink { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
     #stage.over::after {
       content: ''; position: absolute; inset: 12px; border-radius: 18px; pointer-events: none;
-      border: 1px dashed color-mix(in srgb, var(--orange) 70%, transparent);
-      background: color-mix(in srgb, var(--orange) 6%, transparent);
+      border: 1px dashed color-mix(in srgb, var(--accent) 70%, transparent);
+      background: color-mix(in srgb, var(--accent) 6%, transparent);
     }
     #dump { position: absolute; left: 0; top: 0; width: 0; height: 0; object-fit: contain; pointer-events: none; }
 
@@ -183,96 +69,57 @@
     #empty h1 { font-size: 34px; font-weight: 400; letter-spacing: -0.02em; line-height: 1.1; }
     #empty p { font-size: 14px; color: var(--muted); max-width: 34ch; }
     #empty .link { background: none; border: 0; padding: 0; font: inherit; font-size: 14px; color: var(--muted); cursor: pointer; text-decoration: underline; text-underline-offset: 3px; }
-    #empty .link:hover { color: var(--orange); }
-    #fatal { font-size: 14px; color: var(--orange); max-width: 44ch; line-height: 1.45; }
+    #empty .link:hover { color: var(--accent); }
+    #fatal { font-size: 14px; color: var(--accent); max-width: 44ch; line-height: 1.45; }
 
-    /* ---- the panel ---- */
-    #panel {
-      position: relative; overflow: auto; padding: 204px 32px 48px 32px;
-      display: flex; flex-direction: column; gap: 28px;
-      scrollbar-width: thin;
-    }
-    /* Divider starts at the rule, like teletext's, so the band above runs unbroken. */
-    #panel::before { content: ''; position: fixed; top: var(--chrome-rule); bottom: 0; right: calc(var(--panel-w)); border-left: 1px solid var(--separator); pointer-events: none; }
+    /* ---- the sheet's own furniture ---- */
+    /* Folded, the head is all you see of the sheet, so it carries the count and
+       the file: the summary truncates rather than pushing the count off. */
+    #ptcount { white-space: nowrap; }
+    #n { font-variant-numeric: tabular-nums; }
+    #nlabel { color: var(--muted); }
+    #status { min-width: 0; text-align: right; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-    .count { display: flex; flex-direction: column; gap: 10px; }
-    .count__big { font-size: 96px; line-height: 0.95; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
-    .count__big small { font-size: 28px; letter-spacing: -0.01em; color: var(--muted); margin-left: 6px; }
-    .count__line { font-size: 14px; color: var(--muted); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+    #ptlist .empty { font-size: 13px; color: var(--muted); }
 
-    h2 { font-size: 12px; font-weight: 400; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin-bottom: 12px; }
-
-    .row { display: flex; flex-direction: column; gap: 4px; }
-    .row + .row { margin-top: 14px; }
-    .row__top { display: flex; align-items: baseline; justify-content: space-between; font-size: 13px; color: var(--muted); }
-    .row__top b { font-weight: 400; color: var(--ink); font-variant-numeric: tabular-nums; }
-
-    input[type="range"] {
-      -webkit-appearance: none; appearance: none; width: 100%; height: 16px;
-      background: transparent; cursor: pointer; margin: 0; display: block;
-    }
-    input[type="range"]::-webkit-slider-runnable-track {
-      height: 1px; border-radius: 1px; background: color-mix(in srgb, var(--ink) 20%, transparent);
-    }
-    input[type="range"]::-webkit-slider-thumb {
-      -webkit-appearance: none; appearance: none; width: 13px; height: 13px; border: 0;
-      border-radius: 13px; background: var(--orange); margin-top: -6px;
-      transition: transform 140ms ease;
-    }
-    input[type="range"]:hover::-webkit-slider-thumb { transform: scale(1.15); }
-    input[type="range"]:focus-visible { outline: none; }
-    input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 4px color-mix(in srgb, var(--orange) 30%, transparent); }
-    input[type="range"]::-moz-range-track { height: 1px; background: color-mix(in srgb, var(--ink) 20%, transparent); }
-    input[type="range"]::-moz-range-thumb { width: 13px; height: 13px; border: 0; border-radius: 13px; background: var(--orange); }
-    input[type="range"]:disabled { opacity: 0.4; cursor: default; }
-
+    /* One melt point: its number, its two dials, and the way out. */
     .pt {
       display: grid; grid-template-columns: 22px 1fr 24px; gap: 0 12px; align-items: start;
-      padding: 10px; border-radius: 14px; border: 1px solid transparent; cursor: pointer;
-      transition: background-color 160ms ease, border-color 160ms ease;
+      padding: 10px; border-radius: 14px; cursor: pointer;
+      box-shadow: inset 0 0 0 1px transparent;
+      transition: background-color 160ms ease, box-shadow 160ms ease;
     }
     .pt + .pt { margin-top: 6px; }
     .pt:hover { background: var(--field); }
-    .pt.sel { background: var(--field); border-color: color-mix(in srgb, var(--orange) 40%, transparent); }
+    .pt.sel { background: var(--field); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent); }
     .pt__n {
       width: 22px; height: 22px; border-radius: 22px; display: grid; place-items: center;
       font-size: 11px; background: var(--separator); color: var(--muted); font-variant-numeric: tabular-nums;
-      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 10%, transparent);
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 10%, transparent);
     }
-    .pt.sel .pt__n { background: var(--orange); color: var(--white); box-shadow: none; }
+    .pt.sel .pt__n { background: var(--accent); color: var(--white); box-shadow: none; }
+    .pt__dials { display: grid; gap: 12px; }
+    /* The value is a <b> because the point list's JS reads b[data-v]; Labil
+       Grotesk ships 400 only, so synthetic bold is the one thing to undo. */
+    .pt b { font-weight: 400; }
     .pt__x {
       width: 24px; height: 24px; border-radius: 24px; border: 0; background: transparent;
       color: var(--muted); cursor: pointer; display: grid; place-items: center; padding: 0;
     }
     .pt__x svg { width: 12px; height: 12px; }
-    .pt__x:hover { color: var(--orange); background: var(--separator); }
-    .pts .empty { font-size: 14px; color: var(--muted); }
+    .pt__x:hover { color: var(--accent); background: var(--separator); }
 
-    .about { font-size: 13px; line-height: 1.45; color: var(--muted); border-top: 1px solid var(--separator); padding-top: 20px; margin-top: auto; }
-    /* Labil Grotesk ships 400 only, so emphasis is colour, not weight — same as .row__top b. */
+    .about { border-top: 1px solid var(--separator); padding-top: 16px; margin-top: auto; }
+    /* Labil Grotesk ships 400 only, so emphasis is colour, not weight. */
     .about b { font-weight: 400; color: var(--ink); }
     .about p + p { margin-top: 8px; }
-    .about a { color: inherit; }
+    .about code { font-size: 12px; }
 
-    /* Fold: stage on top, panel under it, chrome tightens like the family does */
+    /* Folded: the sheet swings to the bottom of the screen, so the stage takes
+       the full width and stops above the collapsed glass. */
     @media (max-width: 900px) {
-      body { grid-template-columns: minmax(0, 1fr); grid-template-rows: 70vh auto; overflow: auto; }
-      html, body { height: auto; }
-      :root { --chrome-top: 16px; --chrome-rule: 96px; --chrome-tools: 112px; --chrome-pad: 16px; }
-      .header-pill__role { display: none; }
-      .tools {
-        left: 0; right: 0; justify-content: flex-start; padding: 0 var(--chrome-pad);
-        overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch;
-        touch-action: pan-x; scrollbar-width: none; cursor: grab;
-      }
-      .tools::-webkit-scrollbar { display: none; }
-      .tools.dragging { cursor: grabbing; }
-      .tool-pill { flex: 0 0 auto; }
-      #stage { height: 70vh; }
+      #stage { right: 0; bottom: 76px; }
       #empty { padding-top: 180px; }
-      #panel { padding: 24px 16px 64px; overflow: visible; border-top: 1px solid var(--separator); }
-      #panel::before { display: none; }
-      .count__big { font-size: 72px; }
     }
   </style>
 </head>
@@ -305,7 +152,7 @@
   </div>
   <div class="chrome-rule" aria-hidden="true"></div>
 
-  <nav class="tools" aria-label="Melt controls">
+  <nav class="tools tools--sheet" aria-label="Melt controls">
     <button class="tool-pill" id="t-upload" type="button" aria-label="Upload an SVG">
       <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
       <span class="tool-pill__label">Upload</span>
@@ -327,7 +174,7 @@
 
   <main id="stage" aria-label="Melt stage">
     <canvas id="ink"></canvas>
-    <img id="dump" alt="" hidden>
+    <img id="dump" alt="" decoding="async" hidden>
     <div id="empty">
       <h1>Drop an SVG here</h1>
       <p id="fatal" hidden></p>
@@ -339,46 +186,50 @@
     </div>
   </main>
 
-  <aside id="panel" aria-label="Melt settings">
-    <section class="count" aria-live="polite">
-      <div class="count__big"><span id="n">0</span><small id="nlabel">melt points</small></div>
-      <div class="count__line" id="status">Drop an SVG to start</div>
-    </section>
+  <aside class="sheet" aria-label="Melt settings">
+    <div class="sheet__head">
+      <span class="sheet__title" id="ptcount"><span id="n">0</span> <span id="nlabel">melt points</span></span>
+      <span class="sheet__summary" id="status" aria-live="polite">Drop an SVG to start</span>
+    </div>
+    <div class="sheet__body">
 
-    <section class="global">
-      <h2>Global</h2>
-      <div class="row">
-        <div class="row__top"><label for="s-passes">Passes</label><b id="v-passes">3</b></div>
-        <input id="s-passes" type="range" min="1" max="6" step="1" value="3" disabled>
-      </div>
-      <div class="row">
-        <div class="row__top"><label for="s-thresh">Threshold</label><b id="v-thresh">50%</b></div>
-        <input id="s-thresh" type="range" min="0.05" max="0.95" step="0.01" value="0.5" disabled>
-      </div>
-      <div class="row">
-        <div class="row__top"><label for="s-base">Everywhere</label><b id="v-base">0 px</b></div>
-        <input id="s-base" type="range" min="0" max="40" step="1" value="0" disabled>
-      </div>
-    </section>
+      <h2 class="sheet__section">Global</h2>
+      <label class="field">
+        <span class="field__top"><span class="field__label">Passes</span><span class="field__value" id="v-passes">3</span></span>
+        <input class="dial" id="s-passes" type="range" min="1" max="6" step="1" value="3" disabled>
+      </label>
+      <label class="field">
+        <span class="field__top"><span class="field__label">Threshold</span><span class="field__value" id="v-thresh">50%</span></span>
+        <input class="dial" id="s-thresh" type="range" min="0.05" max="0.95" step="0.01" value="0.5" disabled>
+      </label>
+      <label class="field">
+        <span class="field__top"><span class="field__label">Everywhere</span><span class="field__value" id="v-base">0 px</span></span>
+        <input class="dial" id="s-base" type="range" min="0" max="40" step="1" value="0" disabled>
+      </label>
 
-    <section class="pts">
-      <h2>Points</h2>
+      <h2 class="sheet__section">Points</h2>
       <div id="ptlist"><p class="empty">Load an SVG first.</p></div>
-    </section>
 
-    <section class="about">
-      <p>Each melt point blurs the ink around it and re-thresholds it, so strokes swell, corners round off and letters bleed into each other. <b>Passes</b> is how many blur-and-rethreshold rounds; <b>threshold</b> is the ink level — low bleeds, high erodes.</p>
-      <p>Your file never leaves this browser. Nothing is uploaded; the melt runs on a canvas here, and your points are kept in local storage.</p>
-      <p>Export traces the melted mask at twice the working resolution and writes it as one <code>evenodd</code> path in the original SVG's coordinate space.</p>
-    </section>
+      <div class="about sheet__note">
+        <p>Each melt point blurs the ink around it and re-thresholds it, so strokes swell, corners round off and letters bleed into each other. <b>Passes</b> is how many blur-and-rethreshold rounds; <b>threshold</b> is the ink level — low bleeds, high erodes.</p>
+        <p>Your file never leaves this browser. Nothing is uploaded; the melt runs on a canvas here, and your points are kept in local storage.</p>
+        <p>Export traces the melted mask at twice the working resolution and writes it as one <code>evenodd</code> path in the original SVG's coordinate space.</p>
+      </div>
+    </div>
   </aside>
 
-<script src="melt.js"></script>
-<script src="trace.js"></script>
+<script src="/assets/play.js" defer></script>
+<script src="melt.js" defer></script>
+<script src="trace.js" defer></script>
 <script>
-(() => {
+// Everything the page needs — play.js, melt.js, trace.js — is deferred, so the
+// wiring waits for the parse to finish rather than racing it.
+document.addEventListener('DOMContentLoaded', () => {
   'use strict';
   const $ = id => document.getElementById(id);
+  // play.js paints a .dial's filled track; it only needs telling when a value
+  // is set in code rather than by a hand on the slider.
+  const dials = root => { if (window.play) window.play.dials(root); };
   const stage = $('stage'), canvas = $('ink'), empty = $('empty'), dump = $('dump');
   const ctx = canvas.getContext('2d');
   const probe = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
@@ -606,18 +457,19 @@
     }
     box.innerHTML = points.map((p, i) => `<div class="pt${i === sel ? ' sel' : ''}" data-i="${i}">
       <span class="pt__n">${i + 1}</span>
-      <div>
-        <div class="row">
-          <div class="row__top"><span>Heat</span><b data-v="heat">${Math.round(p.heat)}</b></div>
-          <input type="range" data-k="heat" min="0" max="120" step="1" value="${Math.round(p.heat)}" aria-label="Heat of point ${i + 1}">
-        </div>
-        <div class="row">
-          <div class="row__top"><span>Reach</span><b data-v="r">${Math.round(p.r)}</b></div>
-          <input type="range" data-k="r" min="20" max="600" step="1" value="${Math.round(p.r)}" aria-label="Reach of point ${i + 1}">
-        </div>
+      <div class="pt__dials">
+        <label class="field">
+          <span class="field__top"><span class="field__label">Heat</span><b class="field__value" data-v="heat">${Math.round(p.heat)}</b></span>
+          <input class="dial" type="range" data-k="heat" min="0" max="120" step="1" value="${Math.round(p.heat)}" aria-label="Heat of point ${i + 1}">
+        </label>
+        <label class="field">
+          <span class="field__top"><span class="field__label">Reach</span><b class="field__value" data-v="r">${Math.round(p.r)}</b></span>
+          <input class="dial" type="range" data-k="r" min="20" max="600" step="1" value="${Math.round(p.r)}" aria-label="Reach of point ${i + 1}">
+        </label>
       </div>
       <button class="pt__x" type="button" data-x="${i}" aria-label="Remove point ${i + 1}">${X}</button>
     </div>`).join('');
+    dials(box);
   }
 
   // Update values in place so dragging a slider never rebuilds it underfoot.
@@ -633,6 +485,7 @@
       });
       row.querySelectorAll('b[data-v]').forEach(b => { b.textContent = Math.round(p[b.dataset.v]); });
     });
+    dials($('ptlist'));
   }
 
   $('ptlist').addEventListener('input', e => {
@@ -678,6 +531,7 @@
     gPasses.inp.value = opts.passes; gPasses.out.textContent = gPasses.fmt(opts.passes);
     gThresh.inp.value = opts.threshold; gThresh.out.textContent = gThresh.fmt(opts.threshold);
     gBase.inp.value = opts.base; gBase.out.textContent = gBase.fmt(opts.base);
+    dials();
   }
 
   function setDisabled(d) {
@@ -929,23 +783,11 @@
   }
 
   // ---------- theme ----------
-  const CYCLE = ['day', 'night', 'system', 'circadian'];
-  document.querySelector('[data-theme-toggle]').addEventListener('click', () => {
-    const html = document.documentElement;
-    html.dataset.theme = CYCLE[(CYCLE.indexOf(html.dataset.theme || 'system') + 1) % CYCLE.length];
-    try { localStorage.setItem('theme', html.dataset.theme); } catch (e) {}
-  });
+  // play.js cycles the pill and writes the token; the ink is drawn into a
+  // canvas from --ink, so it has to be repainted once the fade has settled.
   new MutationObserver(() => setTimeout(paint, 260)).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme', 'style'] });
   matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => setTimeout(paint, 260));
 
-  // Folded, the tools row drags sideways (same guard the family uses).
-  (function dragRow(row) {
-    let down = false, rowMoved = false, sx = 0, sl = 0;
-    row.addEventListener('pointerdown', e => { if (e.pointerType === 'touch' || row.scrollWidth <= row.clientWidth) return; down = true; rowMoved = false; sx = e.clientX; sl = row.scrollLeft; });
-    row.addEventListener('pointermove', e => { if (!down) return; const dx = e.clientX - sx; if (Math.abs(dx) > 6) { rowMoved = true; row.classList.add('dragging'); } if (rowMoved) { row.scrollLeft = sl - dx; e.preventDefault(); } });
-    for (const t of ['pointerup', 'pointercancel', 'pointerleave']) row.addEventListener(t, () => { down = false; row.classList.remove('dragging'); });
-    row.addEventListener('click', e => { if (rowMoved) { e.preventDefault(); e.stopPropagation(); rowMoved = false; } }, true);
-  })(document.querySelector('.tools'));
 
   // ---------- boot ----------
   // Dev hooks: #sample loads the sample without touching saved state;
@@ -1002,8 +844,7 @@
       if (H.has('svgdump') && mask) showDump();
     }
   })();
-})();
+});
 </script>
-<script src="/assets/circadian.js" defer></script>
 </body>
 </html>

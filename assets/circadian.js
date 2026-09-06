@@ -154,9 +154,12 @@
     if (on && timer === null) {
       tick();
       timer = setInterval(tick, 60000);
-    } else if (!on && timer !== null) {
-      clearInterval(timer);
-      timer = null;
+    } else if (!on) {
+      if (timer !== null) { clearInterval(timer); timer = null; }
+      // Unconditionally, not only when a timer was running: this script is now
+      // injected lazily, so a returning circadian visitor whose head script
+      // restored the cached tokens can switch away before it arrives — and
+      // would keep those cached colours if the clear were skipped.
       clear();
     }
   }
