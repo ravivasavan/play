@@ -99,6 +99,16 @@
         "day.webp",
         "before.webp"
       ]
+    },
+    {
+      "slug": "camouflage",
+      "name": "Camouflage",
+      "date": "20260905",
+      "description": "Camouflage — colourways, blotch or fleck, blur and layers dials; Random rolls a new seed.",
+      "status": "tinkering",
+      "tech": "vanilla JS, canvas",
+      "glyph": "hexagon",
+      "shots": []
     }
   ]
 }

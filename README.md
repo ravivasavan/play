@@ -1,4 +1,4 @@
-# play.vasavan.org
+# play.ravivasavan.com
 
 Experiments, out in the open.
 
@@ -34,6 +34,6 @@ Anything that needs a framework or build step (Next, Vue) gets its own repo and 
 
 ## Plumbing
 
-- DNS: Cloudflare, `CNAME play → ravivasavan.github.io` (DNS-only so GitHub can provision TLS)
+- DNS: Cloudflare, `CNAME play.ravivasavan.com → ravivasavan.github.io` (DNS-only so GitHub can provision TLS)
 - Custom domain + HTTPS: repo Settings → Pages
 - `.nojekyll` keeps GitHub from running Jekyll over the files
