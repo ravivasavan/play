@@ -74,7 +74,7 @@
 
     /* ---- the map: fills the viewport, left of the floating sheet ---- */
     #stage {
-      position: fixed; inset: 0; right: var(--sheet-inset);
+      position: fixed; inset: 0;
       overflow: hidden; touch-action: none; cursor: grab;
     }
     #stage.dragging { cursor: grabbing; }
@@ -90,7 +90,7 @@
     #tip .tick { color: var(--orange); }
 
     /* ---- sheet head: the big count ---- */
-    .count { display: flex; flex-direction: column; gap: 10px; width: 100%; }
+    .count { display: flex; flex-direction: column; gap: 10px; width: 100%; min-width: 0; }
     .count__big { font-size: 96px; line-height: 0.95; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
     .count__big small { font-size: 28px; letter-spacing: -0.01em; color: var(--muted); margin-left: 6px; }
     .count__rail { height: 3px; border-radius: 3px; background: var(--separator); overflow: hidden; }
@@ -137,7 +137,6 @@
     .about a { color: inherit; }
 
     @media (max-width: 900px) {
-      #stage { right: 0; bottom: 76px; }
       /* Collapsed, the head is 60px tall: the count shrinks to fit, keeping
          the number and the to-go line but dropping the progress rail. */
       .sheet__head .count { gap: 2px; }
@@ -177,7 +176,7 @@
   </div>
   <div class="chrome-rule" aria-hidden="true"></div>
 
-  <nav class="tools tools--sheet" aria-label="Atlas controls">
+  <nav class="tools" aria-label="Atlas controls">
     <button class="tool-pill" id="t-in" type="button" aria-label="Zoom in">
       <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/><path d="M11 8v6"/><path d="M8 11h6"/></svg></span>
       <span class="tool-pill__label">In</span>

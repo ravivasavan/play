@@ -47,8 +47,8 @@
     html, body { height: 100%; overflow: hidden; }
 
     /* The world is full-bleed and pans under the glass: that is the point of a
-       translucent sheet. App.jsx centres the content in what is left beside
-       it, so nothing important sits behind the panel. */
+       translucent sheet. App.jsx centres the world on the viewport's centre,
+       and the sheet lies over the right of it — minimise is the way back. */
     .metal-hint {
       position: fixed;
       left: 20px;
@@ -60,11 +60,13 @@
       z-index: 1;
     }
 
-    /* Squint at this and a logo either holds together or doesn't. */
+    /* Squint at this and a logo either holds together or doesn't — so it has
+       to stay readable while the dials are open. The whole right-hand column
+       is the sheet's now, so the patch test sits above the hint on the left. */
     .metal-squint {
       position: fixed;
-      right: calc(var(--sheet-inset) + 4px);
-      bottom: 14px;
+      left: 20px;
+      bottom: 44px;
       display: flex;
       align-items: center;
       gap: 8px;
@@ -78,9 +80,11 @@
     }
 
     @media (max-width: 900px) {
-      /* Folded, the sheet is at the bottom: both readouts move clear of it. */
+      /* Folded, the sheet is a bar across the bottom and, minimised, a disc in
+         the bottom-right corner: the patch test lifts clear of the bar and
+         keeps the left edge, which the disc never reaches. */
       .metal-hint { display: none; }
-      .metal-squint { right: var(--panel-gap); bottom: 84px; }
+      .metal-squint { left: var(--panel-gap); bottom: 84px; }
     }
   </style>
   <!-- Before the app bundle, which Vite injects at the end of this head. -->
@@ -131,7 +135,7 @@
   <!-- Second row: metal's own buttons. Single shows one variant large;
        Spawn breeds nine from the selected; Fresh starts over at the current
        legibility stop; Back walks the lineage; Export saves the vector. -->
-  <nav class="tools tools--sheet" aria-label="Metal controls">
+  <nav class="tools" aria-label="Metal controls">
     <button class="tool-pill" id="p-view" type="button" aria-label="Toggle between single variant and grid of nine" aria-pressed="false">
       <span class="tool-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

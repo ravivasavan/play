@@ -191,9 +191,9 @@
   function generate() {
     const rand = mulberry32(state.seed);
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    /* The stage is the viewport less the settings glass (and, folded, less the
-       collapsed sheet at the foot), so the pattern is measured off that box
-       rather than off the window. */
+    /* The stage is the full viewport — the sheet floats above it as an
+       overlay rather than reserving room — so the pattern is measured off
+       that box rather than off the window; in practice the two agree. */
     const box = stage ? stage.getBoundingClientRect() : null;
     const cssW = Math.max(1, Math.round(box ? box.width : window.innerWidth));
     const cssH = Math.max(1, Math.round(box ? box.height : window.innerHeight));
@@ -295,9 +295,9 @@
   if (blurEl) blurEl.addEventListener('input', onDialChange);
   if (layersEl) layersEl.addEventListener('input', onDialChange);
 
-  /* The stage changes shape for reasons other than the window resizing — the
-     sheet swinging to the foot of the screen at 900 moves its right edge — so
-     the box itself is what's watched. */
+  /* The stage is inset:0 on the viewport, so watching its box amounts to
+     watching the window — but a ResizeObserver is what the shared stage
+     convention expects, and it costs nothing to stay consistent with it. */
   let resizeTimer = 0;
   let sized = false;
   function onResize() {

@@ -47,10 +47,10 @@
     html, body { height: 100%; overflow: hidden; }
 
     /* ---- the stage ---- */
-    /* Everything the sheet does not cover, so the melt never slides under the
-       glass: the viewport less the sheet and its two gaps. */
+    /* The full viewport — the sheet is a pure overlay that may sit over part
+       of the artwork; that's what minimise is for. */
     #stage {
-      position: fixed; top: 0; left: 0; bottom: 0; right: var(--sheet-inset);
+      position: fixed; inset: 0;
       overflow: hidden; touch-action: none;
     }
     #ink { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
@@ -115,10 +115,9 @@
     .about p + p { margin-top: 8px; }
     .about code { font-size: 12px; }
 
-    /* Folded: the sheet swings to the bottom of the screen, so the stage takes
-       the full width and stops above the collapsed glass. */
+    /* Folded: the sheet swings to the bottom of the screen, so the empty
+       state's copy sits clear of the tools row instead of centring on it. */
     @media (max-width: 900px) {
-      #stage { right: 0; bottom: 76px; }
       #empty { padding-top: 180px; }
     }
   </style>
@@ -152,7 +151,7 @@
   </div>
   <div class="chrome-rule" aria-hidden="true"></div>
 
-  <nav class="tools tools--sheet" aria-label="Melt controls">
+  <nav class="tools" aria-label="Melt controls">
     <button class="tool-pill" id="t-upload" type="button" aria-label="Upload an SVG">
       <span class="tool-pill__icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span>
       <span class="tool-pill__label">Upload</span>

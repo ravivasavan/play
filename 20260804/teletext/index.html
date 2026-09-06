@@ -56,17 +56,18 @@
     }
 
     /* ---- the screen ----
-       The window doesn't scroll; the stage does, inside the frame the chrome
-       leaves it. Its right is kept clear of the floating sheet, which is what
-       the fit-to-width maths below measures against. */
+       The window doesn't scroll; the stage does, and it is the whole viewport:
+       the page is centred on the window's centre and the settings glass floats
+       over it. The fit-to-width maths below measures that same box. */
     html, body { height: 100%; overflow: hidden; }
     #stage {
       height: 100%;
       overflow: auto;
       display: grid;
       place-items: center;
-      /* Clears both chrome rows at the top and the glass at the right. */
-      padding: 204px var(--sheet-inset) 48px var(--chrome-pad);
+      /* Clears both chrome rows at the top. The sides are even, so the screen
+         sits on the middle of the window rather than beside the sheet. */
+      padding: 204px var(--chrome-pad) 48px;
     }
     #screen-wrap { display: grid; gap: 16px; justify-items: center; }
     /* The page never inverts with the theme: teletext is black, full stop.
@@ -104,8 +105,8 @@
     #drop.over { border-color: var(--accent); color: var(--ink); }
     #file { display: none; }
 
-    /* Folded: the screen takes the width, the sheet drops to the bottom of it
-       (play.css) and the window scrolls again. */
+    /* Folded: the screen takes the width, the sheet drops to the bottom of the
+       window (play.css) and the window scrolls again. */
     @media (max-width: 900px) {
       html, body { height: auto; overflow: visible; }
       #stage {
@@ -163,7 +164,7 @@
        button and a checkbox in the panel; the sheet keeps the settings, the row
        takes the actions, and neither is duplicated. Reveal is what the button
        was called on the remote. -->
-  <nav class="tools tools--sheet" aria-label="Teletext controls">
+  <nav class="tools" aria-label="Teletext controls">
     <button class="tool-pill" id="p-random" type="button" aria-label="Randomise the page">
       <span class="tool-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

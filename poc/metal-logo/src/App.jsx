@@ -236,21 +236,16 @@ export default function App() {
     if (selArt && squintRef.current) blit(squintRef.current, selArt, colors)
   }
 
-  // The world is full-bleed and pans under the glass — but the middle of the
-  // *visible* page is beside the sheet, not behind it.
-  function sheetInset() {
-    if (window.matchMedia('(max-width: 900px)').matches) return 0
-    const v = getComputedStyle(document.documentElement).getPropertyValue('--sheet-inset')
-    return parseFloat(v) || 392
-  }
-
+  // The world is full-bleed and pans under the glass, and it centres on the
+  // viewport's own centre: the sheet is an overlay, not a column cut out of
+  // the page, and minimising it uncovers whatever it was lying on.
   function centerView(forMode) {
     const vp = viewportRef.current
     if (!vp) return
     const rect = vp.getBoundingClientRect()
     const contentH = forMode === 'single' ? SINGLE_H : GRID_H
     view.current = {
-      x: (rect.width - sheetInset() - WORLD_W) / 2,
+      x: (rect.width - WORLD_W) / 2,
       y: Math.max(200, (rect.height - contentH) / 2 + 60),
       z: 1,
     }

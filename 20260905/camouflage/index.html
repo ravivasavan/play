@@ -48,11 +48,13 @@
     html, body { height: 100%; overflow: hidden; }
 
     /* ---- the stage ---- */
-    /* The pattern is the page, so it takes everything the sheet does not: the
-       viewport less the glass and its two gaps. camo.js measures this box
-       rather than the window, so the pattern is never cropped by the sheet. */
+    /* The pattern is a full-bleed background: the stage is the whole viewport,
+       centred under the chrome, and the sheet floats above it as an overlay
+       rather than carving out room. camo.js measures this box rather than the
+       window, but the two now agree — neither the sheet nor its minimised disc
+       ever shifts or crops the pattern. */
     #stage {
-      position: fixed; top: 0; left: 0; bottom: 0; right: var(--sheet-inset);
+      position: fixed; inset: 0;
       overflow: hidden;
     }
     #camo { display: block; width: 100%; height: 100%; }
@@ -84,11 +86,10 @@
     }
     .seed__label { color: color-mix(in srgb, var(--ink) 55%, transparent); }
 
-    /* Folded: the sheet swings to the bottom of the screen, so the stage takes
-       the full width and stops above the collapsed glass, and the seed rides
-       up with it. */
+    /* Folded: the sheet swings to the bottom of the screen as a collapsed bar
+       (or, minimised, a disc at bottom-right). The stage stays full-bleed
+       behind it, but the seed rides up clear of the bar. */
     @media (max-width: 900px) {
-      #stage { right: 0; bottom: 76px; }
       .seed { bottom: 84px; }
     }
   </style>
@@ -122,7 +123,7 @@
   </div>
   <div class="chrome-rule" aria-hidden="true"></div>
 
-  <nav class="tools tools--sheet" aria-label="Camouflage controls">
+  <nav class="tools" aria-label="Camouflage controls">
     <button class="tool-pill" id="p-random" type="button" aria-label="Generate a new camouflage pattern">
       <span class="tool-pill__icon">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

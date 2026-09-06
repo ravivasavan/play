@@ -129,6 +129,23 @@
 
   var folded = matchMedia('(max-width: 900px)');
 
+  /* --- minimised, and remembered --- */
+  /* Minimise is a preference, not a page state: it is one key for the whole
+     site, and it is stamped on <html> rather than on the sheet. Both halves
+     matter for the flash. The attribute is written here, at script-execution
+     time — play.js is deferred, so the document is parsed but nothing has
+     painted — and because CSS keys off the root rather than the element, a
+     page that builds its sheet in script (metal's DialKit panel) gets the
+     minimised geometry on that sheet's first frame too. */
+
+  var SHEET_KEY = 'play.sheet';
+
+  function minimised() { return html.getAttribute('data-play-sheet') === 'min'; }
+
+  function stampMin(min) { html.setAttribute('data-play-sheet', min ? 'min' : 'open'); }
+
+  try { stampMin(localStorage.getItem(SHEET_KEY) === 'min'); } catch (e) { stampMin(false); }
+
   function fullHeight(sheet) {
     var prevH = sheet.style.height;
     var prevT = sheet.style.transition;
@@ -142,24 +159,36 @@
   }
 
   // Folded and shut, the sheet is 60px of glass clipping a full panel of
-  // controls. They are still in the DOM, so without this a keyboard or a
-  // screen reader walks straight into thirty invisible fields — and the clip
-  // is overflow:hidden, so the browser cannot even scroll them into view.
-  // inert takes them out of the tab order and off the a11y tree together.
+  // controls; minimised it is a 64px disc clipping the head as well. They are
+  // still in the DOM either way, so without this a keyboard or a screen reader
+  // walks straight into thirty invisible fields — and the clip is
+  // overflow:hidden, so the browser cannot even scroll them into view. inert
+  // takes them out of the tab order and off the a11y tree together.
   function gateBody(sheet) {
     var body = sheet.querySelector('.sheet__body');
-    if (!body) return;
-    var shut = folded.matches && !sheet.classList.contains('is-open');
+    var head = sheet.querySelector('.sheet__head');
+    var min = minimised();
+    var shut = min || (folded.matches && !sheet.classList.contains('is-open'));
     // Read who has focus before inert takes it away: the browser drops it on
     // <body>, and Escape out of a field would lose the user's place.
-    var had = shut && body.contains(document.activeElement);
-    body.inert = shut;
-    // Belt and braces for the engines that ship inert without the a11y half.
-    if (shut) body.setAttribute('aria-hidden', 'true');
-    else body.removeAttribute('aria-hidden');
+    var had = (shut && body && body.contains(document.activeElement)) ||
+              (min && head && head.contains(document.activeElement));
+    if (body) {
+      body.inert = shut;
+      // Belt and braces for the engines that ship inert without the a11y half.
+      if (shut) body.setAttribute('aria-hidden', 'true');
+      else body.removeAttribute('aria-hidden');
+    }
+    if (head) {
+      head.inert = min;
+      if (min) head.setAttribute('aria-hidden', 'true');
+      else head.removeAttribute('aria-hidden');
+    }
+    var icon = sheet.querySelector('.sheet__icon');
+    if (icon) icon.setAttribute('aria-expanded', min ? 'false' : 'true');
     if (had) {
-      var head = sheet.querySelector('.sheet__head');
-      if (head && head.focus) head.focus();
+      var to = min ? icon : head;
+      if (to && to.focus) to.focus();
     }
   }
 
@@ -183,6 +212,12 @@
     else openSheet(sheet);
   }
 
+  // Lucide, drawn at 24 and scaled by the CSS: minimize-2 for the control in
+  // the head, sliders-horizontal for the disc it leaves behind.
+  var GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">';
+  var MINIMISE = GLYPH + '<path d="M4 14h6v6"/><path d="M20 10h-6V4"/><path d="m14 10 7-7"/><path d="m3 21 7-7"/></svg>';
+  var SLIDERS = GLYPH + '<path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12H12"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg>';
+
   function prepareSheet(sheet) {
     if (!sheet.querySelector('.sheet__grab')) {
       var grab = document.createElement('div');
@@ -196,8 +231,51 @@
       head.setAttribute('tabindex', '0');
       head.setAttribute('aria-expanded', 'false');
     }
+    // The minimise control goes last in the head, so it is the hard-right item
+    // whatever else the experiment put there.
+    if (head && !head.querySelector('.sheet__min')) {
+      var min = document.createElement('button');
+      min.type = 'button';
+      min.className = 'sheet__min';
+      min.setAttribute('aria-label', 'Minimise settings');
+      min.innerHTML = MINIMISE;
+      head.appendChild(min);
+    }
+    // And the disc's face, which is all that is left of the sheet once it is.
+    if (!sheet.querySelector('.sheet__icon')) {
+      var icon = document.createElement('button');
+      icon.type = 'button';
+      icon.className = 'sheet__icon';
+      icon.setAttribute('aria-label', 'Show settings');
+      icon.setAttribute('aria-expanded', 'false');
+      icon.innerHTML = SLIDERS;
+      sheet.appendChild(icon);
+    }
     gateBody(sheet);
   }
+
+  // One preference for every sheet on the page and every play on the site.
+  function setMin(min, from) {
+    stampMin(min);
+    try { localStorage.setItem(SHEET_KEY, min ? 'min' : 'open'); } catch (e) {}
+    document.querySelectorAll('.sheet').forEach(gateBody);
+    if (!from) return;
+    // Minimising, gateBody has already moved focus from the head to the disc.
+    // Restoring, the disc it was on is gone, so hand focus back to the head —
+    // to the minimise button in it, which is where the journey started.
+    if (!min) {
+      var back = from.querySelector('.sheet__min') || from.querySelector('.sheet__head');
+      if (back && back.focus) back.focus();
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    var hit = e.target.closest && e.target.closest('.sheet__min, .sheet__icon');
+    if (!hit) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setMin(hit.classList.contains('sheet__min'), hit.closest('.sheet'));
+  });
 
   // Delegated, so a sheet built after load still works.
   document.addEventListener('click', function (e) {
@@ -221,13 +299,17 @@
         // runs, and a keyboard user should not land back at the top of the
         // document because they shut a sheet.
         var head = open[i].querySelector('.sheet__head');
-        if (folded.matches && head && (!document.activeElement || document.activeElement === document.body)) head.focus();
+        if (folded.matches && !minimised() && head &&
+            (!document.activeElement || document.activeElement === document.body)) head.focus();
       }
       return;
     }
     if (e.key !== 'Enter' && e.key !== ' ') return;
     var head = e.target.closest && e.target.closest('.sheet__head');
     if (!head || !folded.matches) return;
+    // The minimise button lives in the head and is a real button: swallowing
+    // the key here would stop the browser turning it into a click.
+    if (e.target.closest('.sheet__min')) return;
     e.preventDefault();
     toggleSheet(head.closest('.sheet'));
   });
@@ -272,5 +354,12 @@
   else start();
 
   // A page that sets a dial's value in code calls play.dials() to repaint it.
-  window.play = { dials: paintDials, setTheme: setTheme, openSheet: openSheet, closeSheet: closeSheet };
+  window.play = {
+    dials: paintDials,
+    setTheme: setTheme,
+    openSheet: openSheet,
+    closeSheet: closeSheet,
+    minimiseSheet: function (min) { setMin(min !== false); },
+    isSheetMinimised: minimised
+  };
 })();

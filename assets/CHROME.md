@@ -13,9 +13,21 @@ out of the page.**
 - A full-width hairline at `--chrome-rule` (120 / 96 / 88).
 - Level 2 — the experiment's own 44px glass tool pills at `--chrome-tools`
   (136 / 112 / 104), right-aligned, scrolling sideways when folded.
-- The settings sheet — one pane of `--glass-*` material, inset `--panel-gap`
-  from the viewport, `--panel-w` wide, floating over the content. On a phone it
-  swings down to the bottom of the screen and collapses to its head.
+- The settings sheet — one pane of glass, `--panel-w` wide, inset `--panel-gap`
+  from the viewport, floating over the content and starting below the tools
+  row. On a phone it swings down to the bottom of the screen and collapses to
+  its head. Either way it minimises into a single round glass button.
+
+## Layout: the content is the whole viewport, the sheet overlays it
+
+**No page reserves room for the sheet.** The experiment's artwork is centred on
+the *viewport's* centre and its canvases and backgrounds run edge to edge; the
+glass lies on top and covers a corner of it. That is deliberate, and minimise is
+the answer to it — one click and the whole sheet is a 64px disc.
+
+So: no `padding-right` for the panel, no shrunken stage, no `bottom: 76px` to
+clear the phone's bottom sheet, and no `--sheet-inset` — the token is gone.
+Pages that measure their own stage measure the full viewport.
 
 ---
 
@@ -167,8 +179,12 @@ different thing and play.css supports both.)
 ## 3. Level 2 — the tools row
 
 One `<nav class="tools">` holding 44px glass pills, each an icon and one word.
-Add `tools--sheet` when the page also has a `.sheet`, so the row stops one
-`--panel-gap` short of the glass instead of running to the viewport edge.
+
+There is no `tools--sheet` any more — **delete the class**. The row runs the
+full width at every size; on a page that has a sheet play.css hangs its right
+edge off `--panel-gap` instead of `--chrome-pad`, so the pills and the glass
+below them share a margin, and the sheet starts *below* the row rather than
+beside it.
 
 The row is a sideways scroller at every width, right-aligned by an auto margin
 on its first child rather than by `justify-content`, so a row too wide for the
@@ -178,7 +194,7 @@ keeps the scroller from clipping their shadow makes it taller than the pills —
 put nothing in it that needs to be clicked but a `.tool-pill`.
 
 ```html
-<nav class="tools tools--sheet" aria-label="Teletext controls">
+<nav class="tools" aria-label="Teletext controls">
   <button class="tool-pill" id="p-random" type="button" aria-label="Randomise the page">
     <span class="tool-pill__icon">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">…</svg>
@@ -203,13 +219,18 @@ Folded (≤900) the row scrolls sideways rather than shedding its labels, and
 **play.js already gives it pointer-drag scrolling** — delete the local
 `dragRow` IIFE from your page's script.
 
+A page with a tools row gets its sheet at
+`calc(var(--chrome-tools) + 44px + var(--panel-gap))` rather than at
+`--chrome-tools`, so the two never sit on each other. play.css works that out
+from `body:has(.tools)`; there is nothing to add to the markup.
+
 ---
 
 ## 4. The sheet
 
 A `.sheet` is the whole settings surface. It is `position: fixed` — it is **not**
-a grid column. Nothing else needs to change about your layout except reserving
-room for it.
+a grid column, and it is **not** something your layout makes room for. Nothing
+else needs to change about your layout at all.
 
 ```html
 <aside class="sheet" aria-label="Settings">
@@ -281,16 +302,45 @@ room for it.
 Order matters: `.switch` needs `<input type="checkbox">` immediately followed by
 `<span class="switch__track">`, both inside the `<label class="switch">`.
 
-**Reserving room.** Replace `body { grid-template-columns: minmax(0,1fr) var(--panel-w) }`
-with a full-width stage that pads its right side:
+**Reserving room: don't.** A stage is the whole viewport —
+`position: fixed; inset: 0`, or `100%` of both — and whatever it draws is
+centred on the viewport's centre. Delete every `padding-right:
+var(--sheet-inset)`, every `right: var(--sheet-inset)`, every `bottom: 76px`,
+and any measurement in your script that subtracts the panel before it centres
+something. Delete the old `#panel::before` divider too — the sheet floats, so
+there is no edge to draw.
 
-```css
-#stage { padding-right: var(--sheet-inset); }   /* = --panel-w + 2 × --panel-gap */
-@media (max-width: 900px) { #stage { padding-right: var(--chrome-pad); } }
-```
+### Minimise
 
-Delete the old `#panel::before` divider — the sheet floats, so there is no edge
-to draw.
+The sheet folds into a single round glass button and stays folded until it is
+asked back — across reloads, and across plays.
+
+- play.js appends a **`.sheet__min`** button (32px glass-inset disc, Lucide
+  `minimize-2` at 16px) to `.sheet__head` if the markup has none, and a
+  **`.sheet__icon`** button (Lucide `sliders-horizontal` at 20px) as the
+  sheet's last child. Neither belongs in your markup; write your head as
+  though they weren't there and they will land in the right places (the
+  minimise button is the head's hard-right item, and `.sheet__summary` keeps
+  its own right edge by taking the slack to its left).
+- Minimised, the sheet *is* the button: 64px round, same material, anchored
+  where its top-right corner was — `top` the sheet's own top, `right
+  var(--panel-gap)`. Folded (≤900) it is 56px at the bottom-right, above the
+  safe area. 240ms `cubic-bezier(0.4, 0, 0.2, 1)` on width, height and
+  border-radius; nothing under `prefers-reduced-motion`.
+- The state is one preference for the whole site:
+  `localStorage['play.sheet']` = `'min'` | `'open'`.
+- **It is stamped on `<html>`, not on the sheet**: `data-play-sheet="min"`,
+  written by play.js at script-execution time — deferred, so the document is
+  parsed and nothing has painted yet — and every rule keys off the root. That
+  is what stops the flash, and it is also why a page that builds its sheet in
+  script (metal's DialKit panel) gets the minimised geometry on that sheet's
+  first frame. Pages need no head script of their own for it.
+- Keyboard and focus: both controls are real buttons, so Enter and Space work.
+  Minimising moves focus to the disc; restoring puts it back on the minimise
+  button in the head. Escape keeps the meaning it always had — it closes an
+  open bottom sheet, and does nothing to a minimised one.
+- While minimised the head and the body are both `inert` and `aria-hidden`;
+  the disc carries `aria-label="Show settings"` and `aria-expanded`.
 
 ### Mobile behaviour (≤900px)
 
@@ -308,8 +358,11 @@ it to 60px showing the grabber and `.sheet__head`. play.js:
   `min(72vh, content)` over 320ms;
 - closes every open sheet on Escape, and on crossing the 900px boundary.
 
-`body:has(.sheet)` gets 76px of bottom padding at ≤900 so nothing hides under
-the collapsed glass.
+Minimise works here too, and is independent of open/collapsed: restoring the
+disc gives you back whichever of the two the sheet was in.
+
+Nothing pads the body any more — the collapsed glass lies over the artwork
+like the pane does.
 
 ---
 
@@ -321,11 +374,13 @@ the collapsed glass.
 | `<meta id="theme-color">` | repainted on every theme change, on OS scheme change, and each time circadian updates `--bg` |
 | `/assets/circadian.js` | injected once as `id="circadian-script"` when the theme is or becomes circadian |
 | `.tools` | pointer-drag sideways scrolling (touch pans natively) |
-| `.sheet__body` | made `inert` while the sheet is folded and shut, so the clipped controls leave the tab order and the a11y tree |
+| `.sheet__body` | made `inert` while the sheet is folded and shut — and, with `.sheet__head`, while it is minimised — so the clipped controls leave the tab order and the a11y tree |
 | `.sheet`, `.sheet__head`, `.sheet__grab`, `.is-open` | the bottom-sheet behaviour above |
+| `.sheet__min`, `.sheet__icon` | injected if absent; the two halves of minimise |
+| `<html data-play-sheet>` | `min` \| `open`, stamped before first paint from `localStorage['play.sheet']` |
 | `input[type="range"].dial` | `--dial-fill` kept in step with the value, so the filled half of the track paints in WebKit |
 | `window.play.dials(root?)` | call after setting a dial's value **in code** — an `input` event from the user is handled already |
-| `window.play.setTheme(t)`, `window.play.openSheet(el)`, `window.play.closeSheet(el)` | if a page ever needs them |
+| `window.play.setTheme(t)`, `window.play.openSheet(el)`, `window.play.closeSheet(el)`, `window.play.minimiseSheet(bool)`, `window.play.isSheetMinimised()` | if a page ever needs them |
 
 play.js is a classic script with `defer`, loaded **before** the page's own
 scripts. Anything of yours that reads `.sheet` geometry should also be `defer`.
@@ -346,11 +401,11 @@ Glass: `--glass-bg --glass-blur --glass-edge --glass-specular --glass-shadow
 than by hand; the only two that move between day and night are `--glass-mix`
 (62% / 52%) and `--glass-spec` (45% / 12%), and everything else derives.
 
-The `.sheet` is the exception, in two places. Folded it lies over the
-experiment's own artwork rather than over the page, so at ≤900 it swaps the
-shared tint for `--sheet-mix` / `--sheet-spec` (86% / 34% day, 80% / 10% night)
-and `--sheet-blur` (`blur(24px) saturate(120%)` — the same blur, less of the
-canvas's colour pulled up into the type). Unfolded it is ordinary glass.
+The `.sheet` is the exception, in two places. It lies over the experiment's own
+artwork at every width now that the content runs the full viewport beneath it,
+so it swaps the shared tint for `--sheet-mix` / `--sheet-spec` (86% / 34% day,
+80% / 10% night) and `--sheet-blur` (`blur(24px) saturate(120%)` — the same
+blur, less of the canvas's colour pulled up into the type).
 
 And it redefines `--muted` for everything inside it: `color-mix(in srgb,
 var(--fg) 82%, transparent)`, because :root's 55% measures 1.4–2.4:1 over a
@@ -361,7 +416,10 @@ second `opacity` on top of it; that is what dropped `.sheet__section` to
 1.4:1.
 
 Geometry: `--chrome-top --chrome-rule --chrome-tools --chrome-pad`,
-`--panel-w --panel-gap --sheet-inset`.
+`--panel-w --panel-gap --sheet-min` (64 / 56, the minimised disc) and
+`--sheet-top` (the sheet's own top edge, dropped below the tools row on a page
+that has one). **`--sheet-inset` is gone** — nothing reserves room for the
+sheet, so there is nothing to inset.
 
 Stacking: `--z-sheet` 450 < `--z-rule` 499 < `--z-chrome` 500. Keep your page's
 own content below 450.
@@ -403,7 +461,11 @@ throughout; any page-local token block must be too.
       `:root[data-theme="…"]`, not bare.
 - [ ] `#panel` converted to `.sheet` + `.sheet__head` + `.sheet__body`; the
       `#panel::before` divider and the `grid-template-columns: … var(--panel-w)`
-      body grid removed; the stage pads `var(--sheet-inset)` on its right.
+      body grid removed.
+- [ ] Nothing reserves room for the sheet: no `--sheet-inset` anywhere in the
+      CSS or the script, no `bottom: 76px` at ≤900, no `tools--sheet` class.
+      The stage is the full viewport and its artwork is centred on the
+      viewport's centre.
 - [ ] Every checkbox converted to `.switch` (checkbox kept, visually hidden).
 - [ ] Every slider given `class="dial"`; any code that sets a dial's value calls
       `play.dials()` after.

@@ -55,14 +55,13 @@
   --glass-shadow-sm: 0 1px 2px rgba(13, 27, 30, 0.06), 0 8px 24px rgba(13, 27, 30, 0.10);
   --glass-radius: 24px;
 
-  /* The sheet is the one piece of glass that carries running text, and folded
-     it lies directly over the experiment's own artwork rather than over the
-     page. 62% of the background is not enough ground for a 13px label to
-     survive teletext's saturated raster, so the folded sheet keeps the
-     material's blur, edge and shadow but sits on a denser tint and a calmer
-     saturation of its own — enough to read on, still thin enough for the
-     canvas to show through it. Unfolded it is ordinary glass: the page pads
-     its right, so nothing but --bg is ever behind it. */
+  /* The sheet is the one piece of glass that carries running text, and it lies
+     directly over the experiment's own artwork at every width now that the
+     content runs the full viewport under it. 62% of the background is not
+     enough ground for a 13px label to survive teletext's saturated raster, so
+     the sheet keeps the material's blur, edge and shadow but sits on a denser
+     tint and a calmer saturation of its own — enough to read on, still thin
+     enough for the canvas to show through it. */
   --sheet-mix: 86%;
   --sheet-spec: 34%;
   --sheet-blur: blur(24px) saturate(120%);
@@ -74,11 +73,16 @@
   --chrome-tools: 136px;
   --chrome-pad: 40px;
 
-  /* The floating settings sheet. --sheet-inset is what a page reserves on its
-     right so content never slides under the glass. */
+  /* The floating settings sheet. It is an overlay: the content underneath is
+     the whole viewport and nothing reserves room for the glass, so the only
+     geometry here is the sheet's own — how wide the pane is, how far it is
+     inset, and how big the disc is once it is minimised. */
   --panel-w: 360px;
   --panel-gap: 16px;
-  --sheet-inset: calc(var(--panel-w) + var(--panel-gap) * 2);
+  --sheet-min: 64px;
+  /* Where the sheet's top edge sits. Overridden below on a page that has a
+     tools row, because the two would otherwise start on the same line. */
+  --sheet-top: var(--chrome-tools);
 
   /* Stacking, one place. Content < sheet < rule < chrome/tools. */
   --z-sheet: 450;
@@ -335,7 +339,8 @@ a { color: inherit; }
 
 /* ---------------------------------------------- level 2: the tools row --- */
 /* The experiment's own buttons, one word each. Right-aligned under the rule,
-   stopping short of the sheet on pages that have one. */
+   running the full width: the sheet is an overlay that starts below this row,
+   so there is nothing here to stop short of. */
 
 .tools {
   position: fixed;
@@ -368,8 +373,10 @@ a { color: inherit; }
 }
 .tools::-webkit-scrollbar { display: none; }
 .tools > :first-child { margin-left: auto; }
-/* Pages with a floating sheet: the row ends one gap before the glass starts. */
-.tools--sheet { right: var(--sheet-inset); }
+/* On a page with a sheet the row hangs off the same edge the glass does, so
+   the pills and the pane below them share a right margin. It no longer stops
+   short of anything: the sheet starts below the row, not beside it. */
+body:has(.sheet) .tools { right: var(--panel-gap); }
 
 .tool-pill {
   display: inline-flex;
@@ -422,14 +429,23 @@ a { color: inherit; }
 
 /* ------------------------------------------------------------- the sheet -- */
 /* Settings float over the content on their own pane of glass, inset from the
-   rule and the viewport rather than butted against them. */
+   viewport rather than butted against it. It is a pure overlay: the artwork
+   underneath runs the full width and is centred on the viewport, and the glass
+   lies on top of it. Covering some of the artwork is what minimise is for. */
+
+/* A page with a tools row drops the sheet below the row — both would otherwise
+   start at --chrome-tools and the glass would sit on the pills. */
+body:has(.tools) { --sheet-top: calc(var(--chrome-tools) + 44px + var(--panel-gap)); }
 
 .sheet {
   position: fixed;
-  top: var(--chrome-tools);
+  top: var(--sheet-top);
   right: var(--panel-gap);
-  bottom: var(--panel-gap);
   width: var(--panel-w);
+  /* Sized rather than bottom-anchored, so width and height can both
+     interpolate when the pane folds into the minimised disc. A percentage on
+     a fixed element measures the viewport, scrollbar already deducted. */
+  height: calc(100% - var(--sheet-top) - var(--panel-gap));
   z-index: var(--z-sheet);
   padding: 20px;
   display: flex;
@@ -445,11 +461,19 @@ a { color: inherit; }
      the glass on a phone. 82% of the ink clears 4.5:1 against the darkest and
      the lightest backdrop the experiments put under the sheet. */
   --muted: color-mix(in srgb, var(--fg) 82%, transparent);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-blur);
-  -webkit-backdrop-filter: var(--glass-blur);
+  /* The denser tint, at every width: there is always artwork behind it. */
+  background: color-mix(in srgb, var(--bg) var(--sheet-mix), transparent);
+  backdrop-filter: var(--sheet-blur);
+  -webkit-backdrop-filter: var(--sheet-blur);
   border-radius: var(--glass-radius);
-  box-shadow: var(--glass-edge), var(--glass-specular), var(--glass-shadow);
+  box-shadow:
+    var(--glass-edge),
+    inset 0 1px 0 color-mix(in srgb, white var(--sheet-spec), transparent),
+    var(--glass-shadow);
+  transition:
+    width         240ms cubic-bezier(0.4, 0, 0.2, 1),
+    height        240ms cubic-bezier(0.4, 0, 0.2, 1),
+    border-radius 240ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .sheet::-webkit-scrollbar { display: none; }
 
@@ -474,7 +498,56 @@ a { color: inherit; }
   flex: 0 0 auto;
 }
 .sheet__title { font-size: 14px; }
-.sheet__summary { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* The minimise button is the head's hard-right item, so the summary takes the
+   slack to its left and stays where it always was. */
+.sheet__summary { font-size: 13px; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
+
+/* The minimise control — play.js appends it to the head if the markup has
+   none, the way it appends the grabber. Glass-inset disc, 16px glyph. */
+.sheet__min {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 16px;
+  padding: 0;
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--fg) 10%, transparent);
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.sheet__min svg { width: 16px; height: 16px; display: block; }
+.sheet__min:hover { background: color-mix(in srgb, var(--fg) 12%, transparent); }
+.sheet__min:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 60%, transparent),
+              0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent);
+}
+
+/* And what is left of the sheet once it is minimised: the disc's whole face is
+   this button, so the glass is still the sheet — nothing else moves. */
+.sheet__icon {
+  display: none;
+  position: absolute;
+  inset: 0;
+  place-items: center;
+  border: 0;
+  border-radius: inherit;
+  padding: 0;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  transition: background-color 160ms ease;
+}
+.sheet__icon svg { width: 20px; height: 20px; display: block; }
+.sheet__icon:hover { background: color-mix(in srgb, var(--fg) 8%, transparent); }
+.sheet__icon:focus-visible {
+  outline: none;
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--accent) 60%, transparent);
+}
 
 .sheet__body {
   display: flex;
@@ -698,6 +771,8 @@ input[type="range"].dial {
     --chrome-rule: 96px;
     --chrome-tools: 112px;
     --chrome-pad: 16px;
+    /* A thumb's disc rather than a pointer's. */
+    --sheet-min: 56px;
   }
 
   /* On an experiment the role is the experiment's name and the tool row says
@@ -705,8 +780,10 @@ input[type="range"].dial {
      that copy only goes at 640. */
   .chrome .header-pill__role { display: none; }
 
+  /* Both selectors, because the sheet-page rule above is the more specific
+     one and would otherwise keep its desktop inset here. */
   .tools,
-  .tools--sheet {
+  body:has(.sheet) .tools {
     left: 0;
     right: 0;
     padding-inline: var(--chrome-pad);
@@ -716,28 +793,23 @@ input[type="range"].dial {
   .tools > :first-child { margin-left: 0; }
 
   /* --- bottom sheet --- */
-  /* Folded, the glass lies over the experiment rather than over the page, so
-     it swaps the shared tint for the denser --sheet-mix and drops the
-     saturation that would otherwise pull the canvas's colour up into the
-     type. The blur stays, so what is underneath still moves through it. */
+  /* The material is the same as the pane's; only the geometry swings down. */
   .sheet {
-    background: color-mix(in srgb, var(--bg) var(--sheet-mix), transparent);
-    backdrop-filter: var(--sheet-blur);
-    -webkit-backdrop-filter: var(--sheet-blur);
-    box-shadow:
-      var(--glass-edge),
-      inset 0 1px 0 color-mix(in srgb, white var(--sheet-spec), transparent),
-      var(--glass-shadow);
     top: auto;
-    left: var(--panel-gap);
+    /* Right-anchored and sized, not stretched between two edges: the same
+       reason the pane is, so the width can travel to the minimised disc. */
+    left: auto;
     right: var(--panel-gap);
     bottom: var(--panel-gap);
-    width: auto;
+    width: calc(100% - var(--panel-gap) * 2);
     height: 60px;
     padding: 0;
     gap: 0;
     overflow: hidden;
-    transition: height 320ms cubic-bezier(0.4, 0, 0.2, 1);
+    transition:
+      height        320ms cubic-bezier(0.4, 0, 0.2, 1),
+      width         240ms cubic-bezier(0.4, 0, 0.2, 1),
+      border-radius 240ms cubic-bezier(0.4, 0, 0.2, 1);
   }
   /* --sheet-full is measured by play.js when the sheet opens, so the glass
      grows to its content and no further — and, on a landscape phone, no
@@ -766,9 +838,6 @@ input[type="range"].dial {
     padding: 4px var(--panel-gap) var(--panel-gap);
   }
   .sheet__body::-webkit-scrollbar { display: none; }
-
-  /* Nothing readable should end up under the collapsed glass. */
-  body:has(.sheet) { padding-bottom: 76px; }
 }
 
 @media (max-width: 640px) {
@@ -798,6 +867,36 @@ input[type="range"].dial {
   .header-pill__name { font-size: 14px; }
 }
 
+/* ------------------------------------------------------------ minimised -- */
+/* The whole sheet folds into one disc of the same glass, anchored where its
+   top-right corner was — 64px on a pointer, 56px on a thumb — and the disc's
+   face is the button that brings it back.
+
+   The state lives on <html>, not on the sheet: play.js stamps the attribute
+   the moment it runs, which is before first paint and before a page that
+   builds its sheet in script even has one to stamp, so a sheet that was left
+   minimised never flashes open. Written after the folds so it wins at every
+   width against .sheet and .sheet.is-open alike. */
+
+:root[data-play-sheet="min"] .sheet {
+  width: var(--sheet-min);
+  height: var(--sheet-min);
+  border-radius: calc(var(--sheet-min) / 2);
+  padding: 0;
+  gap: 0;
+  overflow: hidden;
+}
+:root[data-play-sheet="min"] .sheet > :not(.sheet__icon) { display: none; }
+:root[data-play-sheet="min"] .sheet__icon { display: grid; }
+
+@media (max-width: 900px) {
+  /* Folded, the disc keeps the bottom sheet's right-hand end and lifts clear
+     of the home indicator. */
+  :root[data-play-sheet="min"] .sheet {
+    bottom: calc(var(--panel-gap) + env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* ----------------------------------------------------------- preferences -- */
 
 /* Some people get motion sick from a blur that samples a moving page, and some
@@ -819,6 +918,8 @@ input[type="range"].dial {
 @media (prefers-reduced-motion: reduce) {
   body,
   .sheet,
+  .sheet__min,
+  .sheet__icon,
   .switch__track,
   .switch__track::after,
   .tool-pill,
