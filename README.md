@@ -4,7 +4,7 @@ Experiments, out in the open.
 
 Static site served by GitHub Pages from `main` (root). Every push deploys.
 
-The home page is a horizontal timeline built from `assets/timeline/experiments.json` — there is no hand-maintained list.
+The home page is a horizontal timeline built from `assets/timeline/experiments.json` — the rail itself is never hand-maintained. The one exception is the `<noscript>` fallback in `index.html`, a plain list of links for visitors and crawlers without JS: keep it in step with the JSON when you add, remove or hide an entry.
 
 ## Adding an experiment
 
@@ -28,6 +28,7 @@ The home page is a horizontal timeline built from `assets/timeline/experiments.j
    - `url` is optional; without it the entry links to `/<date>/<slug>/`.
    - `status` is `live`, `tinkering`, or `retired` — it colours the dot.
    - `glyph` names a key in the `GLYPHS` map in `index.html`. Add the Lucide path data there first, or the entry falls back to its initial.
+   - `hidden` is optional. Set it to `true` to unlist an entry: the rail skips it, but the folder and shots stay put and the thing itself is still reachable at its own URL. Remove it from the `<noscript>` list too, or it stays visible without JS. Remove the flag to put it back.
 4. Commit + push.
 
 Anything that needs a framework or build step (Next, Vue) gets its own repo and links in by `url`.

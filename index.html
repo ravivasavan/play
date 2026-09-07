@@ -318,9 +318,7 @@
     <p style="padding: 12px 24px"><a href="https://ravivasavan.github.io/arena-stats/">Arena Stats — every block you've made on Are.na, counted</a></p>
     <p style="padding: 12px 24px"><a href="/20260804/teletext/">Teletext — a layout generator on a real 40 × 25 teletext page</a></p>
     <p style="padding: 12px 24px"><a href="/20260824/metal/">Metal — a black metal logo generator you breed, not tune</a></p>
-    <p style="padding: 12px 24px"><a href="/20260826/atlas/">Atlas — every country you've been to, filled in on an Equal Earth map</a></p>
-    <p style="padding: 12px 24px"><a href="/20260903/melt/">Melt — drop an SVG, place a few points, and watch the letters go soft</a></p>
-    <p style="padding: 12px 24px 24px"><a href="/20260905/camouflage/">Camouflage — a random camouflage pattern, one click at a time</a></p>
+    <p style="padding: 12px 24px 24px"><a href="/20260903/melt/">Melt — drop an SVG, place a few points, and watch the letters go soft</a></p>
   </noscript>
 
   <script src="/assets/play.js" defer></script>
@@ -363,7 +361,10 @@
   const fmt = d => `${MONTHS[d.getMonth()]} ${String(d.getDate()).padStart(2, '0')}`;
 
   const data = await (await fetch('/assets/timeline/experiments.json')).json();
-  const entries = data.experiments.map(e => ({ ...e, d: parse(e.date) }))
+  // `hidden` unlists an entry without unpublishing it: the rail skips it, but
+  // its folder and shots stay put and the thing itself is still reachable by
+  // direct URL. Drop the flag to put it back on the timeline.
+  const entries = data.experiments.filter(e => !e.hidden).map(e => ({ ...e, d: parse(e.date) }))
     .sort((a, b) => a.d - b.d);
 
   const today = new Date();

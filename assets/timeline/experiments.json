@@ -78,6 +78,7 @@
       "date": "20260826",
       "description": "Every country you've been to, filled in on an Equal Earth map",
       "status": "tinkering",
+      "hidden": true,
       "tech": "vanilla JS, canvas, Natural Earth 1:50m",
       "glyph": "globe",
       "shots": [
@@ -106,6 +107,7 @@
       "date": "20260905",
       "description": "Pick a colourway and a pattern, then dial the blur and the layers",
       "status": "tinkering",
+      "hidden": true,
       "tech": "vanilla JS, canvas",
       "glyph": "hexagon",
       "shots": [
